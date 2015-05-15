@@ -10,7 +10,6 @@ def place_character(grid,coordinate,character):
     x, y = coordinate
     lines = grid.split('\n')
     lines[y] = lines[y][:x] + character + lines[y][x+1:]
-
     return '\n'.join(lines)
 
 def is_blank(grid,coordinate):
