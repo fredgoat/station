@@ -1,7 +1,7 @@
 # python Documents\GitHub\station\compo.py
 ''' So basically, you spawn a component, which spawns corridors,
 which define equipment areas and spawn airlocks, which spawn more components.
-Then you fill in the equipment, according to that component's flavor.
+Then you fill in the equipment, according to that component's flava.
 '''
 
 from random import random, randint
