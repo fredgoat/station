@@ -18,7 +18,7 @@ comp_multiplier = 2
 
 components = []
 
-blank_map_rows = '\n'.join(' '*gridwidth for x in xrange(gridheight)).split('\n')
+blank_map_rows = [' '*gridwidth for x in xrange(gridheight)]
 
 def place_character(grid,coordinate,character):
     x, y = coordinate
