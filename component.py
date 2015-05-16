@@ -89,10 +89,6 @@ def place_ewcomponent(grid, coordinate, flavor, doors):
 
 def place_nscorridors(grid, coordinate, cwidth, cheight, doors):
     x, y = coordinate
-    crashcount = crashcount + 1
-    if crashcount > 100:
-        return grid
-    else:
     ndoors = filter(lambda coord: coord[0]==y,doors)                # north doors
     sdoors = filter(lambda coord: coord[0]==y+cheight-1,doors)      # south doors
     maincorridors = max(randint(1, cwidth/3), len(ndoors), len(sdoors))     # how many n/s corridors left?
