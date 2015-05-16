@@ -124,10 +124,10 @@ def place_nscorridors(grid, coordinate, cwidth, cheight, doors):
             if grid[y+cheight-1][x+spot] == '#':
                 cl = min(randint(cheight/3, cheight*2), cheight)
                 for c in range(cl):
-                    place_character(grid, (x+spot,y+cheight-c), 'C')
+                    place_character(grid, (x+spot,y+cheight-c-1), 'C')
                     maincorridors -= 1
                 if cl != cheight:
-                    place_character(grid, (x+spot,y+cheight-cl+1), 'c')
+                    place_character(grid, (x+spot,y+cheight-cl), 'c')
     return grid
 
 grid = place_nscomponent(blank_map_rows, (gridwidth/2,gridheight/2), {}, [])
