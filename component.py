@@ -18,8 +18,6 @@ comp_multiplier = 2
 
 components = []
 
-crashcount = 0
-
 blank_map_rows = '\n'.join(' '*gridwidth for x in xrange(gridheight)).split('\n')
 
 def place_character(grid,coordinate,character):
@@ -44,25 +42,21 @@ def is_character(grid,coordinate,character=' '):
         return False
 
 def place_nscomponent(grid, coordinate, flavor, doors):
-    crashcount += 1
-    if crashcount > 100:
-        return grid
-    else:
-        x, y = coordinate
+    x, y = coordinate
+    crashcount = 0
+    while len(components) == 0 and crashcount < 100:    # try this until you get it, but don't die.
         cwidth  = randint(mincompwidth + 1, maxcompwidth)
         cheight = randint(mincompheight, maxcompheight - 2)
-        if random() < bigcompfreq:
+        crashcount = crashcount + 1
+        if random() < bigcompfreq:          # maybe this is a super big component?
             cwidth  *= comp_multiplier
             cheight *= comp_multiplier
-        for ln in range(cheight):       # is the area blocked?
-            for pt in range(cwidth):
-                if not is_character(grid, (x+pt, y+ln)):
-                    if len(components) == 0:
-                        place_nscomponent(grid, coordinate, flavor, doors)
-                    else:
+        else:
+            for ln in range(cheight):       # is the area blocked?
+                for pt in range(cwidth):
+                    if not is_character(grid, (x+pt, y+ln)):
                         return grid
-        else:                           # if not, place component
-            for ln in range(cheight):
+            for ln in range(cheight):       # if not, place component
                 for pt in range(cwidth):
                     grid[y+ln] = grid[y+ln][:x+pt] + '#' + grid[y+ln][x+pt+1:]
             grid = place_nscorridors(grid, coordinate, cwidth, cheight, doors)
@@ -72,26 +66,33 @@ def place_nscomponent(grid, coordinate, flavor, doors):
 
 def place_ewcomponent(grid, coordinate, flavor, doors):
     x, y = coordinate
-    cwidth  = randint(mincompwidth, maxcompwidth - 2)
-    cheight = randint(mincompheight + 1, maxcompheight)
-    if random() < bigcompfreq:
-        cwidth  *= comp_multiplier
-        cheight *= comp_multiplier
-    for ln in range(cheight):       # is the area blocked?
-        for pt in range(cwidth):
-            if not is_character(grid, (x+pt, y+ln)):
-                return grid
-    else:                           # if not, place component
-        for ln in range(cheight):
-            for pt in range(cwidth):
-                grid[y+ln] = grid[y+ln][:x+pt] + '#' + grid[y+ln][x+pt+1:]
-        grid = place_ewcorridors(grid, coordinate, cwidth, cheight, doors)
-#        grid = place_equipment(grid, coordinate, cwidth, cheight, flavor)
-        components.append(dict(coordinate=coordinate, flavor=flavor, doors=doors)) # store the comp
-        return grid
+    crashcount = 0
+    while len(components) == 0 and crashcount < 100:
+        cwidth  = randint(mincompwidth, maxcompwidth - 2)
+        cheight = randint(mincompheight + 1, maxcompheight)
+        crashcount = crashcount + 1
+        if random() < bigcompfreq:
+            cwidth  *= comp_multiplier
+            cheight *= comp_multiplier
+        else:
+            for ln in range(cheight):       # is the area blocked?
+                for pt in range(cwidth):
+                    if not is_character(grid, (x+pt, y+ln)):
+                        return grid
+            for ln in range(cheight):           # if not, place component
+                for pt in range(cwidth):
+                    grid[y+ln] = grid[y+ln][:x+pt] + '#' + grid[y+ln][x+pt+1:]
+            grid = place_ewcorridors(grid, coordinate, cwidth, cheight, doors)
+#           grid = place_equipment(grid, coordinate, cwidth, cheight, flavor)
+            components.append(dict(coordinate=coordinate, flavor=flavor, doors=doors)) # store the comp
+            return grid
 
 def place_nscorridors(grid, coordinate, cwidth, cheight, doors):
     x, y = coordinate
+    crashcount = crashcount + 1
+    if crashcount > 100:
+        return grid
+    else:
     ndoors = filter(lambda coord: coord[0]==y,doors)                # north doors
     sdoors = filter(lambda coord: coord[0]==y+cheight-1,doors)      # south doors
     maincorridors = max(randint(1, cwidth/3), len(ndoors), len(sdoors))     # how many n/s corridors left?
