@@ -17,10 +17,15 @@ bigcompfreq     = 0.15    # how often are comps bigger than max & by what factor
 comp_multiplier = 2
 
 components = []
-
+#blank_map_lists = [[' ' for x in xrange(gridwidth)] for y in xrange(gridheight)]
 blank_map_rows = [' '*gridwidth for x in xrange(gridheight)]
 
 def place_character(grid,coordinate,character):
+    '''Place character in the grid
+
+    >>> place_character(['  ', '  '], (0, 1), 'x')
+    ['  ', 'x ']
+    '''
     x, y = coordinate
     grid[y] = grid[y][:x] + character + grid[y][x+1:]
     return grid
@@ -33,6 +38,7 @@ def is_character(grid,coordinate,character=' '):
         return False
     if y >= len(grid):
         return False
+
     line = grid[y]
     if x >= len(line):
         return False
@@ -92,6 +98,7 @@ def place_nscorridors(grid, coordinate, cwidth, cheight, doors):
     ndoors = filter(lambda coord: coord[0]==y,doors)                # north doors
     sdoors = filter(lambda coord: coord[0]==y+cheight-1,doors)      # south doors
     maincorridors = max(randint(1, cwidth/3), len(ndoors), len(sdoors))     # how many n/s corridors left?
+    deadends = []
     for nd in ndoors:               # place corridors spawned by north doors
         m, n = nd
         if grid[m][n] == '#':
@@ -101,6 +108,7 @@ def place_nscorridors(grid, coordinate, cwidth, cheight, doors):
                 maincorridors -= 1
             if cl != cheight:
                 place_character(grid, (m,n+cl-1), 'c')            # dead-ends get lowercase c
+                deadends.append(m,n+cl-1)
     for sd in sdoors:               # place corridors spawned by south doors
         m, n = sd
         if grid[m][n] == '#':
@@ -110,6 +118,7 @@ def place_nscorridors(grid, coordinate, cwidth, cheight, doors):
                 maincorridors -= 1
             if cl != cheight:
                 place_character(grid, (m,n-cl+1), 'c')
+                deadends.append(m,n-cl+1)
     while maincorridors > 0:        # place any other main corridors at random
         spot = randint(0,cwidth)
         if randint(0,1) == 1:       # do they start at the north?
@@ -120,6 +129,7 @@ def place_nscorridors(grid, coordinate, cwidth, cheight, doors):
                     maincorridors -= 1
                 if cl != cheight:
                     place_character(grid, (x+spot,y+cl-1), 'c')
+                    deadends.append(x+spot,y+cl-1)
         else:                       # or south?
             if grid[y+cheight-1][x+spot] == '#':
                 cl = min(randint(cheight/3, cheight*2), cheight)
@@ -128,7 +138,19 @@ def place_nscorridors(grid, coordinate, cwidth, cheight, doors):
                     maincorridors -= 1
                 if cl != cheight:
                     place_character(grid, (x+spot,y+cheight-cl), 'c')
+                    deadends.append(x+spot,y+cheight-cl)
+    place_ewbranches(grid, coordinate, cwidth, cheight, doors, deadends)
     return grid
+
+def place_ewbranches(grid, coordinate, cwidth, cheight, doors, deadends):
+    x, y = coordinate
+    ndoors = filter(lambda coord: coord[0]==y,doors)                # north doors
+    sdoors = filter(lambda coord: coord[0]==y+cheight-1,doors)      # south doors
+    wdoors = filter(lambda coord: coord[1]==x,doors)                # west doors
+    edoors = filter(lambda coord: coord[1]==x+cwidth-1,doors)       # east doors
+
+import doctest
+doctest.testmod()
 
 grid = place_nscomponent(blank_map_rows, (gridwidth/2,gridheight/2), {}, [])
 
