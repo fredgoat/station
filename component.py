@@ -286,12 +286,73 @@ def place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob
                             space[(m,n)] = 'C'
                         m += 1
                     maincorridors -= 1
+    for end in deadends:                            # now let's connect some dead-ends
+        m,n = end
+        if not is_character(space, end, 'c'):
+            deadends.remove(end)
+        else:
+            go = ['n', 's', 'e', 'w']               # which directions will we look?
+            if is_character(space, (m,n-1), 'C') or is_character(space, (m,n-1), 'c'):
+                go.remove('n')
+            if is_character(space, (m,n+1), 'C') or is_character(space, (m,n+1), 'c'):
+                go.remove('s')
+            if is_character(space, (m+1,n), 'C') or is_character(space, (m+1,n), 'c'):
+                go.remove('e')
+            if is_character(space, (m-1,n), 'C') or is_character(space, (m-1,n), 'c'):
+                go.remove('w')
+            if len(go) < 3:
+                space[end] = 'C'
+                deadends.remove(end)
+            else:
+                for g in go:
+                    if g == 'n':
+                        k = n
+                        while k >= y:
+                            k -= 1
+                            if is_character(space, (m,k), 'C') or is_character(space, (m,k), 'c'):
+                                deadends.remove(end)
+                                while k <= n:
+                                    space[(m,k)] = 'C'
+                                    k += 1
+                                break
+                    elif g == 's':
+                        k = n
+                        while k <= y+cheight-1:
+                            k += 1
+                            if is_character(space, (m,k), 'C') or is_character(space, (m,k), 'c'):
+                                deadends.remove(end)
+                                while k >= n:
+                                    space[(m,k)] = 'C'
+                                    k -= 1
+                                break
+                    elif g == 'e':
+                        h = m
+                        while h <= x+cwidth-1:
+                            h += 1
+                            if is_character(space, (h,n), 'C') or is_character(space, (h,n), 'c'):
+                                deadends.remove(end)
+                                while h >= m:
+                                    space[(h,n)] = 'C'
+                                    h -= 1
+                                break
+                    else:
+                        h = m
+                        while h >= x:
+                            h -= 1
+                            if is_character(space, (h,n), 'C') or is_character(space, (h,n), 'c'):
+                                deadends.remove(end)
+                                while h <= m:
+                                    space[(h,n)] = 'C'
+                                    h += 1
+                                break
+                    if not end in deadends:
+                        break
     return space
 
-import doctest
-doctest.testmod()
+#import doctest
+#doctest.testmod()
 
-grid = Grid(width=winwidth, height=winheight)
+grid = Grid(winwidth, winheight)
 space = place_nscomponent(space, (winwidth/2,winheight/2), {}, [], 1.0, 0.3)
 
 grid.update(space)
