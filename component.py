@@ -175,7 +175,7 @@ def place_nscorridors(space, coordinate, cwidth, cheight, doors, nsprob, ewprob)
                 newdoors.append((m,n-cl+1))
     if random() < nsprob:
         while maincorridors > 0:        # place any other main corridors at random
-            spot = randint(0,cwidth)
+            spot = randint(0,cwidth-1)
             if randint(0,1) == 1:       # do they start at the north?
                 if is_character(space, (x+spot,y), '#') and not is_character(space, (x+spot+1,y), 'C') \
                    and not is_character(space, (x+spot-1,y), 'C') and not is_character(space, (x+spot-1,y+cheight-1), 'C') \
@@ -188,6 +188,7 @@ def place_nscorridors(space, coordinate, cwidth, cheight, doors, nsprob, ewprob)
                     if cl != cheight:
                         space[(x+spot,y+cl-1)] = 'c'
                         deadends.append((x+spot,y+cl-1))
+                        print deadends, 'north'
                     else:
                         newdoors.append((x+spot,y+cl-1))
             else:                       # or south?
@@ -202,6 +203,7 @@ def place_nscorridors(space, coordinate, cwidth, cheight, doors, nsprob, ewprob)
                     if cl != cheight:
                         space[(x+spot,y+cheight-cl)] = 'c'
                         deadends.append((x+spot,y+cheight-cl))
+                        print deadends, 'south'
                     else:
                         newdoors.append((x+spot,y+cheight-cl))
     for d in newdoors:
@@ -215,7 +217,7 @@ def place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob
     sdoors = filter(lambda coord: coord[0]==y+cheight-1,doors)      # south doors
     wdoors = filter(lambda coord: coord[1]==x,doors)                # west doors
     edoors = filter(lambda coord: coord[1]==x+cwidth-1,doors)       # east doors
-    maincorridors = max(1,randint(cheight/5, int(cheight/3.5)), len(edoors) + len(wdoors))     # how many e/w corridors left?
+    branches = max(1,randint(cheight/5, int(cheight/3.5)), len(edoors) + len(wdoors))     # how many e/w corridors left?
     eokay = wokay = False
     if len(edoors) > 0:
         eokay = True
@@ -238,7 +240,7 @@ def place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob
             else:
                 space[(m,n)] = 'C'
             m -= 1
-        maincorridors -= 1
+        branches -= 1
     for wd in wdoors:
         m, n = wd
         cl = randint(cwidth/3, cwidth*2/3)
@@ -250,12 +252,12 @@ def place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob
             else:
                 space[(m,n)] = 'C'
             m += 1
-        maincorridors -= 1
+        branches -= 1
     if wokay == True or eokay == True:
         crashcount = 0
-        while maincorridors > 0 and crashcount < 100:        # place any other main corridors at random
+        while branches > 0 and crashcount < 100:        # place any other branches at random
             crashcount += 1
-            spot = randint(0,cheight)
+            spot = randint(0,cheight-1)
             if eokay == True and randint(0,1) == 1:       # do those start at the east?
                 if is_character(space, (x+cwidth-1,y+spot), '#') and not is_character(space, (x,y+spot+1), 'C') \
                    and not is_character(space, (x,y+spot-1), 'C') and not is_character(space, (x+cwidth-1,y+spot-1), 'C') \
@@ -267,10 +269,11 @@ def place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob
                         if m == x+cwidth-cl and not (is_character(space, (m,n+1), 'C') or is_character(space, (m,n-1), 'C')):
                             space[(m,n)] = 'c'
                             deadends.append((m,n))
+                            print deadends, 'east'
                         else:
                             space[(m,n)] = 'C'
                         m -= 1
-                    maincorridors -= 1
+                    branches -= 1
             elif wokay == True:                       # or west?
                 if is_character(space, (x,y+spot), '#') and not is_character(space, (x,y+spot+1), 'C') \
                    and not is_character(space, (x,y+spot-1), 'C') and not is_character(space, (x+cwidth-1,y+spot-1), 'C') \
@@ -282,11 +285,13 @@ def place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob
                         if m == x+cl-1 and not (is_character(space, (m,n+1), 'C') or is_character(space, (m,n-1), 'C')):
                             space[(m,n)] = 'c'
                             deadends.append((m,n))
+                            print deadends, 'west'
                         else:
                             space[(m,n)] = 'C'
                         m += 1
-                    maincorridors -= 1
-    for end in deadends:                            # now let's connect some dead-ends
+                    branches -= 1
+    print deadends
+    for end in deadends[:]:                            # now let's connect some dead-ends
         m,n = end
         if not is_character(space, end, 'c'):
             deadends.remove(end)
@@ -304,8 +309,12 @@ def place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob
                 space[end] = 'C'
                 deadends.remove(end)
             else:
-                for g in go:
+                print go
+                while len(go) > 0 and end in deadends:
+                    g = go[randint(0,len(go)-1)]
                     if g == 'n':
+                        print g
+                        go.remove('n')
                         k = n
                         while k >= y:
                             k -= 1
@@ -315,7 +324,10 @@ def place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob
                                     space[(m,k)] = 'C'
                                     k += 1
                                 break
+                        print g
                     elif g == 's':
+                        print g
+                        go.remove('s')
                         k = n
                         while k <= y+cheight-1:
                             k += 1
@@ -325,7 +337,10 @@ def place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob
                                     space[(m,k)] = 'C'
                                     k -= 1
                                 break
+                        print g
                     elif g == 'e':
+                        print g
+                        go.remove('e')
                         h = m
                         while h <= x+cwidth-1:
                             h += 1
@@ -335,7 +350,10 @@ def place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob
                                     space[(h,n)] = 'C'
                                     h -= 1
                                 break
+                        print g
                     else:
+                        print g
+                        go.remove('w')
                         h = m
                         while h >= x:
                             h -= 1
@@ -345,8 +363,12 @@ def place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob
                                     space[(h,n)] = 'C'
                                     h += 1
                                 break
-                    if not end in deadends:
+                        print g
+                    if len(deadends) == 0:
                         break
+    for end in deadends:
+        print end
+        space[end] = 'C'
     return space
 
 #import doctest
