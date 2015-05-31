@@ -7,8 +7,8 @@ Then you fill in the equipment, according to that component's flava.
 from random import random, randint
 
 decay           = 0.8     # component branches die off by a power of this
-winwidth        = 50      # window dimensions
-winheight       = 50
+winwidth        = 40      # window dimensions
+winheight       = 40
 mincompheight   = 4       # component dimensions
 mincompwidth    = 4
 maxcompheight   = 12
@@ -44,17 +44,19 @@ class Grid(object):
     def placechar(self, coordinate, character):
         x, y = coordinate
         self.grid[y][x] = character
-        '''Place character in the grid
-
-        >>> place_character(['  ', '  '], (0, 1), 'x')
-        ['  ', 'x ']
-        '''
     def update(self, space, character=' '):            
         self.grid = [[character for x in xrange(winwidth)] for y in xrange(winheight)] # blank slate
         window = filter(lambda x: 0<=x[0]<winwidth and 0<=x[1]<winheight, space)
         for point in window:            # then get all the relevant points from space
             m, n = point
             self.grid[n][m] = space[(m,n)]
+    def border(self, border = 'X'):
+        for a in range(winwidth):
+            self.grid[0][a] = border
+            self.grid[winheight-1][a] = border
+        for b in range(winheight):
+            self.grid[b][0] = border
+            self.grid[b][winwidth-1] = border
     def __repr__(self):                 # print it!
         joined = ''
         for y in self.grid:
@@ -106,6 +108,37 @@ def flood(space, coordinate, target, replacement):
                     Q.append((w[0]+n,co[1]+1))
         return space
 
+def link_corridors(space, coordinate, cwidth, cheight, doors):
+    x, y = coordinate
+    ndoors = filter(lambda coord: coord[1]==y-1,doors)              # north doors
+    sdoors = filter(lambda coord: coord[1]==y+cheight,doors)        # south doors
+    wdoors = filter(lambda coord: coord[0]==x-1,doors)              # west doors
+    edoors = filter(lambda coord: coord[0]==x+cwidth,doors)         # east doors
+    linked = True
+    d = doors[0]
+    m, n = doors[0]
+    others = doors
+    others.remove(d)
+    if d in ndoors:
+        flood(space, (m,n+1), 'C', 'Z')
+    elif d in sdoors:
+        flood(space, (m,n-1), 'C', 'Z')
+    elif d in edoors:
+        flood(space, (m-1,n), 'C', 'Z')
+    else:
+        flood(space, (m+1,n), 'C', 'Z')
+    for o in others:
+        h, k = o
+        if o in ndoors and is_character(space, (h,k+1), 'C')\
+           or o in sdoors and is_character(space, (h,k-1), 'C')\
+           or o in edoors and is_character(space, (h-1,k), 'C')\
+           or o in wdoors and is_character(space, (h+1,k), 'C'):
+            linked = False
+        else:
+            return space
+    # now I just tell it to link the different corridor systems somehow
+    
+
 def place_nscomponent(space, coordinate, flavor, doors, nsprob, ewprob):
     x, y = coordinate
     crashcount = 0
@@ -116,12 +149,13 @@ def place_nscomponent(space, coordinate, flavor, doors, nsprob, ewprob):
         if random() < bigcompfreq:          # maybe this is a super big component?
             cwidth  *= comp_multiplier
             cheight *= comp_multiplier
-        if is_area(space, coordinate, cwidth, cheight):
+        if is_area(space, coordinate, cwidth, cheight): # blocked?
             print 'width', cwidth ####
             for ln in range(cheight):       # if not, place component
                 for pt in range(cwidth):
                     space[(x+pt,y+ln)] = '#'
             space = place_nscorridors(space, coordinate, cwidth, cheight, doors, nsprob, ewprob)
+            space = link_corridors(space, coordinate, cwidth, cheight, doors)
 #           space = place_equipment(space, coordinate, cwidth, cheight, flavor)
             components.append(dict(coordinate=coordinate, flavor=flavor, doors=doors)) # store the comp
     return space
@@ -136,49 +170,46 @@ def place_ewcomponent(space, coordinate, flavor, doors, ewprob, nsprob):
         if random() < bigcompfreq:
             cwidth  *= comp_multiplier
             cheight *= comp_multiplier
-        for ln in range(cheight):       # is the area blocked?
-            for pt in range(cwidth):
-                if not is_character(space, (x+pt, y+ln)):
-                    return space
-        for ln in range(cheight):           # if not, place component
-            for pt in range(cwidth):
-                space[(x+pt,y+ln)] = '#'
-        space = place_ewcorridors(space, coordinate, cwidth, cheight, doors, ewprob, nsprob)
-#       space = place_equipment(space, coordinate, cwidth, cheight, flavor)
-        components.append(dict(coordinate=coordinate, flavor=flavor, doors=doors)) # store the comp
+        if is_area(space, coordinate, cwidth, cheight): # blocked?
+            for ln in range(cheight):           # if not, place component
+                for pt in range(cwidth):
+                    space[(x+pt,y+ln)] = '#'
+            space = place_ewcorridors(space, coordinate, cwidth, cheight, doors, ewprob, nsprob)
+#           space = place_equipment(space, coordinate, cwidth, cheight, flavor)
+            components.append(dict(coordinate=coordinate, flavor=flavor, doors=doors)) # store the comp
     return space
 
 def place_nscorridors(space, coordinate, cwidth, cheight, doors, nsprob, ewprob):
     x, y = coordinate                               # top left coordinate of the component
-    ndoors = filter(lambda coord: coord[0]==y,doors)                # north doors (each is an (x,y))
-    sdoors = filter(lambda coord: coord[0]==y+cheight-1,doors)      # south doors
+    ndoors = filter(lambda coord: coord[0]==y-1,doors)          # north doors (each is an (x,y) just outside the comp)
+    sdoors = filter(lambda coord: coord[0]==y+cheight,doors)      # south doors
     maincorridors = max(1,randint(cwidth/5, int(cwidth/3.5)), len(ndoors) + len(sdoors))     # how many n/s corridors left?
     deadends = []
     newdoors = []
     for nd in ndoors:               # place corridors spawned by north doors
         m, n = nd
-        if is_character(space, (m,n), '#'):
+        if is_character(space, (m,n+1), '#'):
             cl = min(randint(cheight/3, cheight*2), cheight)
             for c in range(cl):
-                space[(m,n+c)] = 'C'
+                space[(m,n+c+1)] = 'C'
             maincorridors -= 1
             if cl != cheight:
-                space[(m,n+cl-1)] = 'c'            # dead-ends get lowercase c
-                deadends.append((m,n+cl-1))
+                space[(m,n+cl)] = 'c'            # dead-ends get lowercase c
+                deadends.append((m,n+cl))
             else:
-                newdoors.append((m,n+cl-1))
+                newdoors.append((m,n+cl+1))
     for sd in sdoors:               # place corridors spawned by south doors
         m, n = sd
-        if is_character(space, (m,n), '#'):
+        if is_character(space, (m,n-1), '#'):
             cl = min(randint(cheight/3, cheight*2), cheight)
             for c in range(cl):
-                space[(m,n-c)] = 'C'
+                space[(m,n-c-1)] = 'C'
             maincorridors -= 1
             if cl != cheight:
-                space[(m,n-cl+1)] = 'c'
-                deadends.append((m,n-cl+1))
+                space[(m,n-cl)] = 'c'
+                deadends.append((m,n-cl))
             else:
-                newdoors.append((m,n-cl+1))
+                newdoors.append((m,n-cl-1))
     if random() < nsprob:
         while maincorridors > 0:        # place any other main corridors at random
             spot = randint(0,cwidth-1)
@@ -191,13 +222,13 @@ def place_nscorridors(space, coordinate, cwidth, cheight, doors, nsprob, ewprob)
                     for c in range(cl):
                         space[(x+spot,y+c)] = 'C'
                     maincorridors -= 1
-                    newdoors.append((x+spot,y))
+                    newdoors.append((x+spot,y-1))
                     if cl != cheight:
                         space[(x+spot,y+cl-1)] = 'c'
                         deadends.append((x+spot,y+cl-1))
                         print deadends, 'north' ####
                     else:
-                        newdoors.append((x+spot,y+cl-1))
+                        newdoors.append((x+spot,y+cl))
             else:                       # or south?
                 if is_character(space, (x+spot,y+cheight-1), '#') and not is_character(space, (x+spot+1,y), 'C') \
                    and not is_character(space, (x+spot-1,y), 'C') and not is_character(space, (x+spot-1,y+cheight-1), 'C') \
@@ -206,24 +237,25 @@ def place_nscorridors(space, coordinate, cwidth, cheight, doors, nsprob, ewprob)
                     for c in range(cl):
                         space[(x+spot,y+cheight-c-1)] = 'C'
                     maincorridors -= 1
-                    newdoors.append((x+spot,y+cheight-1))
+                    newdoors.append((x+spot,y+cheight))
                     if cl != cheight:
                         space[(x+spot,y+cheight-cl)] = 'c'
                         deadends.append((x+spot,y+cheight-cl))
                         print deadends, 'south' ####
                     else:
-                        newdoors.append((x+spot,y+cheight-cl))
+                        newdoors.append((x+spot,y+cheight-cl-1))
     for d in newdoors:
         doors.append(d)
+    print 'doors', doors ####
     place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob, ewprob)
     return space
 
 def place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob, ewprob):
     x, y = coordinate
-    ndoors = filter(lambda coord: coord[0]==y,doors)                # north doors
-    sdoors = filter(lambda coord: coord[0]==y+cheight-1,doors)      # south doors
-    wdoors = filter(lambda coord: coord[1]==x,doors)                # west doors
-    edoors = filter(lambda coord: coord[1]==x+cwidth-1,doors)       # east doors
+    ndoors = filter(lambda coord: coord[1]==y-1,doors)              # north doors
+    sdoors = filter(lambda coord: coord[1]==y+cheight,doors)        # south doors
+    wdoors = filter(lambda coord: coord[0]==x-1,doors)              # west doors
+    edoors = filter(lambda coord: coord[0]==x+cwidth,doors)         # east doors
     branches = max(1,randint(cheight/5, int(cheight/3.5)), len(edoors) + len(wdoors))     # how many e/w corridors left?
     eokay = wokay = False
     if len(edoors) > 0:
@@ -238,6 +270,7 @@ def place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob
             wokay = True
     for ed in edoors:
         m, n = ed
+        m -= 1
         cl = randint(cwidth/3, cwidth*2/3)
         while m >= x+cwidth-cl and not is_character(space, (m,n), 'C'):
             if m == x+cwidth-cl and is_character(space, (m,n+1), '#') \
@@ -250,6 +283,7 @@ def place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob
         branches -= 1
     for wd in wdoors:
         m, n = wd
+        m += 1
         cl = randint(cwidth/3, cwidth*2/3)
         while m <= x+cl-1 and not is_character(space, (m,n), 'C'):
             if m == x+cl-1 and is_character(space, (m,n+1), '#') \
@@ -260,6 +294,7 @@ def place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob
                 space[(m,n)] = 'C'
             m += 1
         branches -= 1
+    newdoors = []
     if wokay == True or eokay == True:
         crashcount = 0
         while branches > 0 and crashcount < 100:        # place any other branches at random
@@ -273,6 +308,7 @@ def place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob
                     cl = randint(cwidth/3, cwidth*2/3)
                     m = x+cwidth-1
                     n = y+spot
+                    newdoors.append((m+1,n))
                     while m >= x+cwidth-cl and not is_character(space, (m,n), 'C'):
                         if m == x+cwidth-cl and not (is_character(space, (m,n+1), 'C') or is_character(space, (m,n-1), 'C')):
                             space[(m,n)] = 'c'
@@ -289,6 +325,7 @@ def place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob
                     cl = randint(cwidth/3, cwidth*2/3)
                     m = x
                     n = y+spot
+                    newdoors.append((m-1,n))
                     while m <= x+cl-1 and not is_character(space, (m,n), 'C'):
                         if m == x+cl-1 and not (is_character(space, (m,n+1), 'C') or is_character(space, (m,n-1), 'C')):
                             space[(m,n)] = 'c'
@@ -370,11 +407,17 @@ def place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob
                         print g ####
                     if len(deadends) == 0:
                         break
+    for d in newdoors:
+        doors.append(d)
     for end in deadends:
         print end ####
         space[end] = 'C'
     return space
 
+'''
+>>> place_character(['  ', '  '], (0, 1), 'x')
+['  ', 'x ']
+'''
 #import doctest
 #doctest.testmod()
 
@@ -382,4 +425,5 @@ grid = Grid(winwidth, winheight)
 space = place_nscomponent(space, (winwidth/2,winheight/2), {}, [], 1.0, 0.3)
 
 grid.update(space)
+grid.border()
 print grid
