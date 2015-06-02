@@ -137,6 +137,12 @@ def link_corridors(space, coordinate, cwidth, cheight, doors):
         else:
             return space
     # now I just tell it to link the different corridor systems somehow
+'''
+okay, here we go.  Make a list of Z doors and C doors.  Pick 2.
+Find a point a randomish height and width between them.  If they're on
+the same wall, go out from the wall a bit.  Mark that point.  Go a direction
+until you see Zs or Cs or a wall.  If you see Zs, 
+'''
     
 
 def place_nscomponent(space, coordinate, flavor, doors, nsprob, ewprob):
