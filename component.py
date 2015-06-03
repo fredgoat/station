@@ -141,7 +141,10 @@ def link_corridors(space, coordinate, cwidth, cheight, doors):
 okay, here we go.  Make a list of Z doors and C doors.  Pick 2.
 Find a point a randomish height and width between them.  If they're on
 the same wall, go out from the wall a bit.  Mark that point.  Go a direction
-until you see Zs or Cs or a wall.  If you see Zs, 
+until you see Zs or Cs or a wall.  If you see Zs, go the other way.
+If you see more Zs, keep going.  If you see a C, connect it to the last Z.
+If not, go past the other Z till you see a C and connect THAT.
+If none of that works, do it again, closer to the doors.  If nothing works,
 '''
     
 
