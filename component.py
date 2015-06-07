@@ -136,11 +136,25 @@ def link_corridors(space, coordinate, cwidth, cheight, doors):
             linked = False
         else:
             return space
+    unattached = filter(lambda door: is_character(space, (door[0],door[1]+1, 'C'), ndoors))\
+                 + filter(lambda door: is_character(space, (door[0],door[1]-1, 'C'), sdoors))\
+                 + filter(lambda door: is_character(space, (door[0]-1,door[1], 'C'), edoors))\
+                 + filter(lambda door: is_character(space, (door[0]+1,door[1], 'C'), wdoors))
+    attached = filter(lambda door: is_character(space, (door[0],door[1]+1, 'Z'), ndoors))\
+                 + filter(lambda door: is_character(space, (door[0],door[1]-1, 'Z'), sdoors))\
+                 + filter(lambda door: is_character(space, (door[0]-1,door[1], 'Z'), edoors))\
+                 + filter(lambda door: is_character(space, (door[0]+1,door[1], 'Z'), wdoors))
+    un = unattached[randint(0,len(unattached)-1)]
+    at = attached[randint(0,len(attached)-1)]
+    point = (randint(min(max(randint(x+cwidth/4,x+cwidth/3),un[0]),randint(x+cwidth*3/4,x+cwidth*2/3)),\
+                     min(max(randint(x+cwidth/4,x+cwidth/3),at[0]),randint(x+cwidth*3/4,x+cwidth*2/3))),\
+             randint(min(max(randint(y+cheight/4,y+cheight/3),un[1]),randint(y+cheight*3/4,y+cheight*2/3)),\
+                     min(max(randint(y+cheight/4,y+cheight/3),at[1]),randint(y+cheight*3/4,y+cheight*2/3))))
+    p, q = point
+    
     # now I just tell it to link the different corridor systems somehow
 '''
-okay, here we go.  Make a list of Z doors and C doors.  Pick 2.
-Find a point a randomish height and width between them.  If they're on
-the same wall, go out from the wall a bit.  Mark that point.  Go a direction
+Go a direction
 until you see Zs or Cs or a wall.  If you see Zs, go the other way.
 If you see more Zs, keep going.  If you see a C, connect it to the last Z.
 If not, go past the other Z till you see a C and connect THAT.
