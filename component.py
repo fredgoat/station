@@ -102,13 +102,13 @@ def flood(space, coordinate, target, replacement):
             space[(w[0]+n,co[1])] = replacement                         # fill it in
             if co[1] > 0:
                 if space[(w[0]+n,co[1]-1)] == target:
-                    Q.append((w[0]+n, co[1]-1))
+                    Q.append((w[0]+n, co[1]-1))                         # add any "targets" to the list if they're north of the filled point
             if co[1] < len(grid)-1:
                 if space[(w[0]+n,co[1]+1)] == target:
-                    Q.append((w[0]+n,co[1]+1))
+                    Q.append((w[0]+n,co[1]+1))                          # ...or south
         return space
 
-def link_corridors(space, coordinate, cwidth, cheight, doors):
+def link_corridors(space, coordinate, cwidth, cheight, doors):      # this function attempts to link all the corridors in a component
     x, y = coordinate
     ndoors = filter(lambda coord: coord[1]==y-1,doors)              # north doors
     sdoors = filter(lambda coord: coord[1]==y+cheight,doors)        # south doors
@@ -119,7 +119,7 @@ def link_corridors(space, coordinate, cwidth, cheight, doors):
     m, n = doors[0]
     others = doors
     others.remove(d)
-    if d in ndoors:
+    if d in ndoors:                         # wherever the first door is, start flooding the corridor connected to it with Zs
         flood(space, (m,n+1), 'C', 'Z')
     elif d in sdoors:
         flood(space, (m,n-1), 'C', 'Z')
@@ -133,7 +133,7 @@ def link_corridors(space, coordinate, cwidth, cheight, doors):
            or o in sdoors and is_character(space, (h,k-1), 'C')\
            or o in edoors and is_character(space, (h-1,k), 'C')\
            or o in wdoors and is_character(space, (h+1,k), 'C'):
-            linked = False
+            linked = False                  # are there any Cs left?  Then something's unattached.
         else:
             return space
     unattached = filter(lambda door: is_character(space, (door[0],door[1]+1, 'C'), ndoors))\
@@ -151,7 +151,18 @@ def link_corridors(space, coordinate, cwidth, cheight, doors):
              randint(min(max(randint(y+cheight/4,y+cheight/3),un[1]),randint(y+cheight*3/4,y+cheight*2/3)),\
                      min(max(randint(y+cheight/4,y+cheight/3),at[1]),randint(y+cheight*3/4,y+cheight*2/3))))
     p, q = point
-    
+    c = False
+    z = False
+    go = ['n','s','e','w']
+    if go[randint(0,len(go)-1)] == 'n':
+        go.remove('n')
+        while q > y and space[(p,q)] != 'Z' and space[(p,q)] != 'C':
+            q -= 1
+        if space[(p,q)] == 'Z':
+            z = True
+        elif space[(p,q)] == 'C':
+            c = True
+        elif q == y
     # now I just tell it to link the different corridor systems somehow
 '''
 Go a direction
