@@ -154,15 +154,60 @@ def link_corridors(space, coordinate, cwidth, cheight, doors):      # this funct
     c = False
     z = False
     go = ['n','s','e','w']
-    if go[randint(0,len(go)-1)] == 'n':
+    g = go[randint(0,len(go)-1)]
+    ways = {'north':'?', 'south':'?', 'east':'?', 'west':'?'}
+    if g == 'n':                                # can we find a 'Z' and a 'C' from our point?  Try going North
         go.remove('n')
         while q > y and space[(p,q)] != 'Z' and space[(p,q)] != 'C':
             q -= 1
         if space[(p,q)] == 'Z':
             z = True
+            ways['north'] = 'Z'
         elif space[(p,q)] == 'C':
             c = True
-        elif q == y
+            ways['north'] = 'C'
+        elif q == y:
+            ways['north'] = 'W'
+    elif g == 's':                              # or South
+        go.remove('s')
+        while q < y+cheight-1 and space[(p,q)] != 'Z' and space[(p,q)] != 'C':
+            q += 1
+        if space[(p,q)] == 'Z':
+            z = True
+            ways['south'] = 'Z'
+        elif space[(p,q)] == 'C':
+            c = True
+            ways['south'] = 'C'
+        elif q == y+cheight-1:
+            ways['south'] = 'W'
+    elif g == 'e':                              # or East
+        go.remove('e')
+        while p < x+cwidth-1 and space[(p,q)] != 'Z' and space[(p,q)] != 'C':
+            p += 1
+        if space[(p,q)] == 'Z':
+            z = True
+            ways['east'] = 'Z'
+        elif space[(p,q)] == 'C':
+            c = True
+            ways['east'] = 'C'
+        elif q == x+cwidth-1:
+            ways['east'] = 'W'
+    elif g == 'w':                              # or West
+        go.remove('w')
+        while q < x and space[(p,q)] != 'Z' and space[(p,q)] != 'C':
+            q -= 1
+        if space[(p,q)] == 'Z':
+            z = True
+            ways['west'] = 'Z'
+        elif space[(p,q)] == 'C':
+            c = True
+            ways['west'] = 'C'
+        elif q == x:
+            ways['west'] = 'W'
+    if c == True and z == True:
+        cways = filter(lambda dir: ways[dir]=='C', ways.keys())
+        zways = filter(lambda dir: ways[dir]=='Z', ways.keys())
+        
     # now I just tell it to link the different corridor systems somehow
 '''
 Go a direction
