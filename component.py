@@ -44,12 +44,12 @@ class Grid(object):
     def placechar(self, coordinate, character):
         x, y = coordinate
         self.grid[y][x] = character
-    def update(self, space, character=' '):            
+    def update(self, space, coordinate=(0,0), character=' '):            
         self.grid = [[character for x in xrange(winwidth)] for y in xrange(winheight)] # blank slate
-        window = filter(lambda x: 0<=x[0]<winwidth and 0<=x[1]<winheight, space)
+        window = filter(lambda x: coordinate[0]<=x[0]<winwidth+coordinate[0] and coordinate[1]<=x[1]<winheight+coordinate[1], space.keys())
         for point in window:            # then get all the relevant points from space
             m, n = point
-            self.grid[n][m] = space[(m,n)]
+            self.grid[n][m] = space[(m-coordinate[0],n-coordinate[1])]
     def border(self, border = 'X'):
         for a in range(winwidth):
             self.grid[0][a] = border
@@ -88,27 +88,58 @@ def is_area(space, coordinate, width, height, character=' '):
 def flood(space, coordinate, target, replacement):
     x, y = coordinate
     Q = []
-    if space[coordinate] != target:          # are we starting with the right character?
+    if not is_character(space, coordinate, target):          # are we starting with the right character?
         return space
     Q.append(coordinate)
     for co in Q:
         w = co
         e = co
-        while space[(w[0],w[1])] == target and w[0] > 0:
+        while is_character(space, (w[0],w[1]), target):
             w = (w[0]-1, w[1])
-        while space[(e[0],e[1])] == target and e[0] < len(grid)-1:      # mark off a line
+        while is_character(space, (e[0],e[1]), target):      # mark off a line
             e = (e[0]+1, e[1])
         for n in range(e[0]-w[0]+1):
             space[(w[0]+n,co[1])] = replacement                         # fill it in
-            if co[1] > 0:
-                if space[(w[0]+n,co[1]-1)] == target:
-                    Q.append((w[0]+n, co[1]-1))                         # add any "targets" to the list if they're north of the filled point
-            if co[1] < len(grid)-1:
-                if space[(w[0]+n,co[1]+1)] == target:
-                    Q.append((w[0]+n,co[1]+1))                          # ...or south
+#            if co[1] > 0:
+            if is_character(space, (w[0]+n,co[1]-1), target):
+                Q.append((w[0]+n, co[1]-1))                         # add any "targets" to the list if they're north of the filled point
+#            if co[1] < len(grid)-1:
+            if is_character(space, (w[0]+n,co[1]+1), target):
+                Q.append((w[0]+n,co[1]+1))                          # ...or south
         return space
 
-def link_corridors(space, coordinate, cwidth, cheight, doors):      # this function attempts to link all the corridors in a component
+def entry(space, coordinate, cwidth, cheight, door):    # this function gives the entry of a door, given its component's size and coordinate
+    x, y = coordinate
+    m, n = door
+    if m == x-1:
+        return (x,n)
+    elif m == x+cwidth:
+        return (x+cwidth-1,n)
+    elif n == y-1:
+        return (m,y)
+    elif n == y+cheight:
+        return (m,y+cheight-1)
+    else:
+        return False
+
+def corridors_linked(space, coordinate, cwidth, cheight, doors):
+    x, y = coordinate
+    linked = True
+    d = doors[0]
+    m, n = entry(space, coordinate, cwidth, cheight, d)
+    others = doors
+    others.remove(d)
+    flood(space, (m,n), 'C', 'Z')                         # flood the first door's corridors with Zs
+    for o in others:
+        h, k = entry(space, coordinate, cwidth, cheight, o)
+        if is_character(space, (h,k), 'C'):
+            linked = False                  # are there any Cs left?  Then something's unattached.
+    flood(space, (m,n), 'Z', 'C')
+    return linked
+
+def link_corridors(space, coordinate, cwidth, cheight, doors, attempt=1):      # this fxn attempts to link the corridors in a component
+    if attempt > 20:
+        return space
     x, y = coordinate
     ndoors = filter(lambda coord: coord[1]==y-1,doors)              # north doors
     sdoors = filter(lambda coord: coord[1]==y+cheight,doors)        # south doors
@@ -116,107 +147,176 @@ def link_corridors(space, coordinate, cwidth, cheight, doors):      # this funct
     edoors = filter(lambda coord: coord[0]==x+cwidth,doors)         # east doors
     linked = True
     d = doors[0]
-    m, n = doors[0]
-    others = doors
-    others.remove(d)
-    if d in ndoors:                         # wherever the first door is, start flooding the corridor connected to it with Zs
-        flood(space, (m,n+1), 'C', 'Z')
-    elif d in sdoors:
-        flood(space, (m,n-1), 'C', 'Z')
-    elif d in edoors:
-        flood(space, (m-1,n), 'C', 'Z')
-    else:
-        flood(space, (m+1,n), 'C', 'Z')
-    for o in others:
-        h, k = o
-        if o in ndoors and is_character(space, (h,k+1), 'C')\
-           or o in sdoors and is_character(space, (h,k-1), 'C')\
-           or o in edoors and is_character(space, (h-1,k), 'C')\
-           or o in wdoors and is_character(space, (h+1,k), 'C'):
-            linked = False                  # are there any Cs left?  Then something's unattached.
-        else:
-            return space
-    unattached = filter(lambda door: is_character(space, (door[0],door[1]+1, 'C'), ndoors))\
-                 + filter(lambda door: is_character(space, (door[0],door[1]-1, 'C'), sdoors))\
-                 + filter(lambda door: is_character(space, (door[0]-1,door[1], 'C'), edoors))\
-                 + filter(lambda door: is_character(space, (door[0]+1,door[1], 'C'), wdoors))
-    attached = filter(lambda door: is_character(space, (door[0],door[1]+1, 'Z'), ndoors))\
-                 + filter(lambda door: is_character(space, (door[0],door[1]-1, 'Z'), sdoors))\
-                 + filter(lambda door: is_character(space, (door[0]-1,door[1], 'Z'), edoors))\
-                 + filter(lambda door: is_character(space, (door[0]+1,door[1], 'Z'), wdoors))
-    un = unattached[randint(0,len(unattached)-1)]
-    at = attached[randint(0,len(attached)-1)]
-    point = (randint(min(max(randint(x+cwidth/4,x+cwidth/3),un[0]),randint(x+cwidth*3/4,x+cwidth*2/3)),\
-                     min(max(randint(x+cwidth/4,x+cwidth/3),at[0]),randint(x+cwidth*3/4,x+cwidth*2/3))),\
-             randint(min(max(randint(y+cheight/4,y+cheight/3),un[1]),randint(y+cheight*3/4,y+cheight*2/3)),\
-                     min(max(randint(y+cheight/4,y+cheight/3),at[1]),randint(y+cheight*3/4,y+cheight*2/3))))
-    p, q = point
-    c = False
-    z = False
-    go = ['n','s','e','w']
-    g = go[randint(0,len(go)-1)]
-    ways = {'north':'?', 'south':'?', 'east':'?', 'west':'?'}
-    if g == 'n':                                # can we find a 'Z' and a 'C' from our point?  Try going North
-        go.remove('n')
-        while q > y and space[(p,q)] != 'Z' and space[(p,q)] != 'C':
-            q -= 1
-        if space[(p,q)] == 'Z':
-            z = True
-            ways['north'] = 'Z'
-        elif space[(p,q)] == 'C':
-            c = True
-            ways['north'] = 'C'
-        elif q == y:
-            ways['north'] = 'W'
-    elif g == 's':                              # or South
-        go.remove('s')
-        while q < y+cheight-1 and space[(p,q)] != 'Z' and space[(p,q)] != 'C':
-            q += 1
-        if space[(p,q)] == 'Z':
-            z = True
-            ways['south'] = 'Z'
-        elif space[(p,q)] == 'C':
-            c = True
-            ways['south'] = 'C'
-        elif q == y+cheight-1:
-            ways['south'] = 'W'
-    elif g == 'e':                              # or East
-        go.remove('e')
-        while p < x+cwidth-1 and space[(p,q)] != 'Z' and space[(p,q)] != 'C':
-            p += 1
-        if space[(p,q)] == 'Z':
-            z = True
-            ways['east'] = 'Z'
-        elif space[(p,q)] == 'C':
-            c = True
-            ways['east'] = 'C'
-        elif q == x+cwidth-1:
-            ways['east'] = 'W'
-    elif g == 'w':                              # or West
-        go.remove('w')
-        while q < x and space[(p,q)] != 'Z' and space[(p,q)] != 'C':
-            q -= 1
-        if space[(p,q)] == 'Z':
-            z = True
-            ways['west'] = 'Z'
-        elif space[(p,q)] == 'C':
-            c = True
-            ways['west'] = 'C'
-        elif q == x:
-            ways['west'] = 'W'
-    if c == True and z == True:
+    m, n = entry(space, coordinate, cwidth, cheight, d)
+    if corridors_linked(space, coordinate, cwidth, cheight, doors): # are they already linked?
+        return space
+    else:                                                       # Or are they unlinked?  Let's fix that
+        flood(space, (m,n), 'C', 'Z')                           # flood the first door's corridors with Zs
+        unattached = filter(lambda door: is_character(space, entry(space, coordinate, cwidth, cheight, door), 'C'), doors)
+        attached = filter(lambda door: is_character(space, entry(space, coordinate, cwidth, cheight, door), 'Z'), doors)
+        un = entry(space, coordinate, cwidth, cheight, unattached[randint(0,len(unattached)-1)])
+        at = entry(space, coordinate, cwidth, cheight, attached[randint(0,len(attached)-1)])
+        point = (randint(min(max(randint(x,x+cwidth/4),un[0]),randint(x+cwidth*3/4,x+cwidth-1)),\
+                         min(max(randint(x,x+cwidth/4),at[0]),randint(x+cwidth*3/4,x+cwidth-1))),\
+                 randint(min(max(randint(y,y+cheight/4),un[1]),randint(y+cheight*3/4,y+cheight-1)),\
+                         min(max(randint(y,y+cheight/4),at[1]),randint(y+cheight*3/4,y+cheight-1))))
+        point = (un[0] + (point[0]-un[0])/attempt, at[1] + (point[1]-at[1])/attempt) # the more attempts, the closer to x = C entry, y = Z entry
+        p, q = point
+        go = ['n','s','e','w']
+        ways = {'n':'?', 's':'?', 'e':'?', 'w':'?'}
+        for g in go:
+            go.remove(g)
+            if g == 'n':                                # can we find a 'Z' and a 'C' from our point?  Try going North
+                while q > y and not is_character(space, (p,q), 'Z') and not is_character(space, (p,q), 'C'):
+                    q -= 1
+                if space[(p,q)] == 'Z':
+                    ways[g] = 'Z'
+                elif space[(p,q)] == 'C':
+                    ways[g] = 'C'
+                elif q == y:
+                    ways[g] = 'W'
+            elif g == 's':                              # or South
+                while q < y+cheight-1 and not is_character(space, (p,q), 'Z') and not is_character(space, (p,q), 'C'):
+                    q += 1
+                if space[(p,q)] == 'Z':
+                    ways[g] = 'Z'
+                elif space[(p,q)] == 'C':
+                    ways[g] = 'C'
+                elif q == y+cheight-1:
+                    ways[g] = 'W'
+            elif g == 'e':                              # or East
+                while p < x+cwidth-1 and not is_character(space, (p,q), 'Z') and not is_character(space, (p,q), 'C'):
+                    p += 1
+                if space[(p,q)] == 'Z':
+                    ways[g] = 'Z'
+                elif space[(p,q)] == 'C':
+                    ways[g] = 'C'
+                elif q == x+cwidth-1:
+                    ways[g] = 'W'
+            elif g == 'w':                              # or West
+                while q < x and not is_character(space, (p,q), 'Z') and not is_character(space, (p,q), 'C'):
+                    q -= 1
+                if space[(p,q)] == 'Z':
+                    ways[g] = 'Z'
+                elif space[(p,q)] == 'C':
+                    ways[g] = 'C'
+                elif q == x:
+                    ways[g] = 'W'
         cways = filter(lambda dir: ways[dir]=='C', ways.keys())
         zways = filter(lambda dir: ways[dir]=='Z', ways.keys())
-        
-    # now I just tell it to link the different corridor systems somehow
-'''
-Go a direction
-until you see Zs or Cs or a wall.  If you see Zs, go the other way.
-If you see more Zs, keep going.  If you see a C, connect it to the last Z.
-If not, go past the other Z till you see a C and connect THAT.
-If none of that works, do it again, closer to the doors.  If nothing works,
-'''
-    
+        if len(cways) != 0 and len(zways) != 0:                 # it worked?  So easy!  Let's connect them.
+            linkways = cways[randint(0,len(cways)-1)] + zways[randint(0,len(zways)-1)]
+            for way in linkways:
+                linkways.remove(way)
+                r = p
+                s = q
+                if way == 'n':                           # go the way to the C or Z, and then connect "point" to the C or Z
+                    while not is_character(space, (r,s), 'C') and not is_character(space, (r,s), 'Z'):
+                        s -= 1
+                    for k in range(q-s):
+                        space[(p,q-k)] = 'Z'
+                elif way == 's':
+                    while not is_character(space, (r,s), 'C') and not is_character(space, (r,s), 'Z'):
+                        s += 1
+                    for k in range(s-q):
+                        space[(p,q+k)] = 'Z'
+                elif way == 'e':
+                    while not is_character(space, (r,s), 'C') and not is_character(space, (r,s), 'Z'):
+                        r += 1
+                    for k in range(r-p):
+                        space[(p+k,q)] = 'Z'
+                else:
+                    while not is_character(space, (r,s), 'C') and not is_character(space, (r,s), 'Z'):
+                        r -= 1
+                    for k in range(p-r):
+                        space[(p-k,q)] = 'Z'
+            flood(space, (m,n), 'Z', 'C')
+            if corridors_linked(space, coordinate, cwidth, cheight, doors):
+                return space
+            else:               # that didn't work?!?
+                print "link_corridors must have found a way to connect, but couldn't.  Whyever not?"
+        elif zways != 0:
+            for zw in zways:    # we can only see Zs from here?  Go past them and maybe we'll connect to Cs.
+                r = p
+                s = q
+                if zw == 'n':
+                    while not is_character(space, (r,s), 'C') and not s == y:
+                        s -= 1
+                    if is_character(space, (r,s), 'C'):
+                        s += 1
+                        while not is_character(space, (r,s), 'Z'):
+                            space[(r,s)] = 'C'
+                            s += 1
+                elif zw == 's':
+                    while not is_character(space, (r,s), 'C') and not s == y+cheight-1:
+                        s += 1
+                    if is_character(space, (r,s), 'C'):
+                        s -= 1
+                        while not is_character(space, (r,s), 'Z'):
+                            space[(r,s)] = 'C'
+                            s -= 1
+                elif zw == 'e':
+                    while not is_character(space, (r,s), 'C') and not r == x+cwidth-1:
+                        r += 1
+                    if is_character(space, (r,s), 'C'):
+                        r -= 1
+                        while not is_character(space, (r,s), 'Z'):
+                            space[(r,s)] = 'C'
+                            r -= 1
+                else:
+                    while not is_character(space, (r,s), 'C') and not r == x:
+                        r -= 1
+                    if is_character(space, (r,s), 'C'):
+                        r += 1
+                        while not is_character(space, (r,s), 'Z'):
+                            space[(r,s)] = 'C'
+                            r += 1
+            flood(space, (m,n), 'Z', 'C')
+            if corridors_linked(space, coordinate, cwidth, cheight, doors):   # did it work?
+                return space
+        elif cways != 0:
+            for cw in cways:    # or maybe we can only see Cs?  Go past them and maybe we'll connect to Zs???
+                r = p
+                s = q
+                if cw == 'n':
+                    while not is_character(space, (r,s), 'C') and not s == y:
+                        s -= 1
+                    if is_character(space, (r,s), 'C'):
+                        s += 1
+                        while not is_character(space, (r,s), 'Z'):
+                            space[(r,s)] = 'C'
+                            s += 1
+                elif cw == 's':
+                    while not is_character(space, (r,s), 'C') and not s == y+cheight-1:
+                        s += 1
+                    if is_character(space, (r,s), 'C'):
+                        s -= 1
+                        while not is_character(space, (r,s), 'Z'):
+                            space[(r,s)] = 'C'
+                            s -= 1
+                elif cw == 'e':
+                    while not is_character(space, (r,s), 'C') and not r == x+cwidth-1:
+                        r += 1
+                    if is_character(space, (r,s), 'C'):
+                        r -= 1
+                        while not is_character(space, (r,s), 'Z'):
+                            space[(r,s)] = 'C'
+                            r -= 1
+                else:
+                    while not is_character(space, (r,s), 'C') and not r == x:
+                        r -= 1
+                    if is_character(space, (r,s), 'C'):
+                        r += 1
+                        while not is_character(space, (r,s), 'Z'):
+                            space[(r,s)] = 'C'
+                            r += 1
+            flood(space, (m,n), 'Z', 'C')
+            if corridors_linked(space, coordinate, cwidth, cheight, doors):     # did THAT work?
+                return space
+        else:                       # fine!  Let's try closer to the doors.
+            flood(space, (m,n), 'Z', 'C')
+            link_corridors(space, coordinate, cwidth, cheight, doors, attempt+1)
+            return space
 
 def place_nscomponent(space, coordinate, flavor, doors, nsprob, ewprob):
     x, y = coordinate
@@ -236,7 +336,7 @@ def place_nscomponent(space, coordinate, flavor, doors, nsprob, ewprob):
             space = place_nscorridors(space, coordinate, cwidth, cheight, doors, nsprob, ewprob)
             space = link_corridors(space, coordinate, cwidth, cheight, doors)
 #           space = place_equipment(space, coordinate, cwidth, cheight, flavor)
-            components.append(dict(coordinate=coordinate, flavor=flavor, doors=doors)) # store the comp
+            components.append(dict(coordinate=coordinate, cwidth=cwidth, cheight=cheight, flavor=flavor, doors=doors)) # store the comp
     return space
 
 def place_ewcomponent(space, coordinate, flavor, doors, ewprob, nsprob):
@@ -255,7 +355,7 @@ def place_ewcomponent(space, coordinate, flavor, doors, ewprob, nsprob):
                     space[(x+pt,y+ln)] = '#'
             space = place_ewcorridors(space, coordinate, cwidth, cheight, doors, ewprob, nsprob)
 #           space = place_equipment(space, coordinate, cwidth, cheight, flavor)
-            components.append(dict(coordinate=coordinate, flavor=flavor, doors=doors)) # store the comp
+            components.append(dict(coordinate=coordinate, cwidth=cwidth, cheight=cheight, flavor=flavor, doors=doors)) # store the comp
     return space
 
 def place_nscorridors(space, coordinate, cwidth, cheight, doors, nsprob, ewprob):
