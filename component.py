@@ -18,10 +18,9 @@ comp_multiplier = 2
 
 components = []
 space = {}
+windex = (0,0)
 
 #blank_map_rows = [' '*gridwidth for x in xrange(gridheight)]
-
-window = {'tl':(0,0),'br':(winwidth,winheight)}
 
 class Grid(object):
     def __init__(self, width=winwidth, height=winheight, character=' '):
@@ -44,9 +43,9 @@ class Grid(object):
     def placechar(self, coordinate, character):
         x, y = coordinate
         self.grid[y][x] = character
-    def update(self, space, coordinate=(0,0), character=' '):            
+    def update(self, space, character=' '):            
         self.grid = [[character for x in xrange(winwidth)] for y in xrange(winheight)] # blank slate
-        window = filter(lambda x: coordinate[0]<=x[0]<winwidth+coordinate[0] and coordinate[1]<=x[1]<winheight+coordinate[1], space.keys())
+        window = filter(lambda x: windex[0]<=x[0]<winwidth+windex[0] and windex[1]<=x[1]<winheight+windex[1], space.keys())
         for point in window:            # then get all the relevant points from space
             m, n = point
             self.grid[n][m] = space[(m-coordinate[0],n-coordinate[1])]
@@ -138,7 +137,7 @@ def corridors_linked(space, coordinate, cwidth, cheight, doors):
     return linked
 
 def link_corridors(space, coordinate, cwidth, cheight, doors, attempt=1):      # this fxn attempts to link the corridors in a component
-    if attempt > 20:
+    if attempt > 20 or len(doors) == 0:
         return space
     x, y = coordinate
     ndoors = filter(lambda coord: coord[1]==y-1,doors)              # north doors
@@ -148,12 +147,15 @@ def link_corridors(space, coordinate, cwidth, cheight, doors, attempt=1):      #
     linked = True
     d = doors[0]
     m, n = entry(space, coordinate, cwidth, cheight, d)
+    print 'flood entry:', (m, n) ####
     if corridors_linked(space, coordinate, cwidth, cheight, doors): # are they already linked?
+        print 'linked before attempt', attempt ####
         return space
     else:                                                       # Or are they unlinked?  Let's fix that
         flood(space, (m,n), 'C', 'Z')                           # flood the first door's corridors with Zs
         unattached = filter(lambda door: is_character(space, entry(space, coordinate, cwidth, cheight, door), 'C'), doors)
-        attached = filter(lambda door: is_character(space, entry(space, coordinate, cwidth, cheight, door), 'Z'), doors)
+        attached = filter(lambda door: is_character(space, entry(space, coordinate, cwidth, cheight, door), 'Z'), doors)  ##### somehow there are no attached!  Did flooding work?
+        print 'on attempt', attempt, 'the attached doors were', attached, 'and the unattached doors were', unattached
         un = entry(space, coordinate, cwidth, cheight, unattached[randint(0,len(unattached)-1)])
         at = entry(space, coordinate, cwidth, cheight, attached[randint(0,len(attached)-1)])
         point = (randint(min(max(randint(x,x+cwidth/4),un[0]),randint(x+cwidth*3/4,x+cwidth-1)),\
@@ -232,6 +234,7 @@ def link_corridors(space, coordinate, cwidth, cheight, doors, attempt=1):      #
                         space[(p-k,q)] = 'Z'
             flood(space, (m,n), 'Z', 'C')
             if corridors_linked(space, coordinate, cwidth, cheight, doors):
+                print 'linked on first try of attempt', attempt ####
                 return space
             else:               # that didn't work?!?
                 print "link_corridors must have found a way to connect, but couldn't.  Whyever not?"
@@ -273,6 +276,7 @@ def link_corridors(space, coordinate, cwidth, cheight, doors, attempt=1):      #
                             r += 1
             flood(space, (m,n), 'Z', 'C')
             if corridors_linked(space, coordinate, cwidth, cheight, doors):   # did it work?
+                print 'linked after overshooting a Z on attempt', attempt ####
                 return space
         elif cways != 0:
             for cw in cways:    # or maybe we can only see Cs?  Go past them and maybe we'll connect to Zs???
@@ -312,8 +316,9 @@ def link_corridors(space, coordinate, cwidth, cheight, doors, attempt=1):      #
                             r += 1
             flood(space, (m,n), 'Z', 'C')
             if corridors_linked(space, coordinate, cwidth, cheight, doors):     # did THAT work?
+                print 'linked after overshooting a C on attempt', attempt ####
                 return space
-        else:                       # fine!  Let's try closer to the doors.
+        else:                       # fine!  Let's try closer to "un" and "at".
             flood(space, (m,n), 'Z', 'C')
             link_corridors(space, coordinate, cwidth, cheight, doors, attempt+1)
             return space
@@ -329,7 +334,7 @@ def place_nscomponent(space, coordinate, flavor, doors, nsprob, ewprob):
             cwidth  *= comp_multiplier
             cheight *= comp_multiplier
         if is_area(space, coordinate, cwidth, cheight): # blocked?
-            print 'width', cwidth ####
+            print 'coordinate:', coordinate, 'extremity:', (x+cwidth-1,y+cheight-1), 'width:', cwidth, 'height:', cheight ####
             for ln in range(cheight):       # if not, place component
                 for pt in range(cwidth):
                     space[(x+pt,y+ln)] = '#'
@@ -392,7 +397,6 @@ def place_nscorridors(space, coordinate, cwidth, cheight, doors, nsprob, ewprob)
     if random() < nsprob:
         while maincorridors > 0:        # place any other main corridors at random
             spot = randint(0,cwidth-1)
-            print 'ns', spot ####
             if randint(0,1) == 1:       # do they start at the north?
                 if is_character(space, (x+spot,y), '#') and not is_character(space, (x+spot+1,y), 'C') \
                    and not is_character(space, (x+spot-1,y), 'C') and not is_character(space, (x+spot-1,y+cheight-1), 'C') \
@@ -405,7 +409,7 @@ def place_nscorridors(space, coordinate, cwidth, cheight, doors, nsprob, ewprob)
                     if cl != cheight:
                         space[(x+spot,y+cl-1)] = 'c'
                         deadends.append((x+spot,y+cl-1))
-                        print deadends, 'north' ####
+                        print deadends, 'north deadend' ####
                     else:
                         newdoors.append((x+spot,y+cl))
             else:                       # or south?
@@ -420,12 +424,12 @@ def place_nscorridors(space, coordinate, cwidth, cheight, doors, nsprob, ewprob)
                     if cl != cheight:
                         space[(x+spot,y+cheight-cl)] = 'c'
                         deadends.append((x+spot,y+cheight-cl))
-                        print deadends, 'south' ####
+                        print deadends, 'south deadend' ####
                     else:
                         newdoors.append((x+spot,y+cheight-cl-1))
     for d in newdoors:
         doors.append(d)
-    print 'doors', doors ####
+    print 'doors:', doors ####
     place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob, ewprob)
     return space
 
@@ -479,7 +483,6 @@ def place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob
         while branches > 0 and crashcount < 100:        # place any other branches at random
             crashcount += 1
             spot = randint(0,cheight-1)
-            print 'ew', spot ####
             if eokay == True and randint(0,1) == 1:       # do those start at the east?
                 if is_character(space, (x+cwidth-1,y+spot), '#') and not is_character(space, (x,y+spot+1), 'C') \
                    and not is_character(space, (x,y+spot-1), 'C') and not is_character(space, (x+cwidth-1,y+spot-1), 'C') \
@@ -492,7 +495,7 @@ def place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob
                         if m == x+cwidth-cl and not (is_character(space, (m,n+1), 'C') or is_character(space, (m,n-1), 'C')):
                             space[(m,n)] = 'c'
                             deadends.append((m,n))
-                            print deadends, 'east' ####
+                            print deadends, 'east deadend' ####
                         else:
                             space[(m,n)] = 'C'
                         m -= 1
@@ -509,12 +512,13 @@ def place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob
                         if m == x+cl-1 and not (is_character(space, (m,n+1), 'C') or is_character(space, (m,n-1), 'C')):
                             space[(m,n)] = 'c'
                             deadends.append((m,n))
-                            print deadends, 'west' ####
+                            print deadends, 'west deadend' ####
                         else:
                             space[(m,n)] = 'C'
                         m += 1
                     branches -= 1
-    print deadends ####
+        if crashcount == 100: print 'couldn\'t place any more e/w branches'  ####
+    print 'deadends', deadends ####
     for end in deadends[:]:                            # now let's connect some dead-ends
         m,n = end
         if not is_character(space, end, 'c'):
@@ -533,11 +537,12 @@ def place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob
                 space[end] = 'C'
                 deadends.remove(end)
             else:
-                print go ####
+                print 'deadend connection options:', go ####
                 while len(go) > 0 and end in deadends:
                     g = go[randint(0,len(go)-1)]
+                    go.remove(g)
+                    print g ####
                     if g == 'n':
-                        go.remove('n')
                         k = n
                         while k >= y:
                             k -= 1
@@ -547,9 +552,7 @@ def place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob
                                     space[(m,k)] = 'C'
                                     k += 1
                                 break
-                        print g ####
                     elif g == 's':
-                        go.remove('s')
                         k = n
                         while k <= y+cheight-1:
                             k += 1
@@ -559,9 +562,7 @@ def place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob
                                     space[(m,k)] = 'C'
                                     k -= 1
                                 break
-                        print g ####
                     elif g == 'e':
-                        go.remove('e')
                         h = m
                         while h <= x+cwidth-1:
                             h += 1
@@ -571,9 +572,7 @@ def place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob
                                     space[(h,n)] = 'C'
                                     h -= 1
                                 break
-                        print g ####
                     else:
-                        go.remove('w')
                         h = m
                         while h >= x:
                             h -= 1
@@ -583,13 +582,13 @@ def place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob
                                     space[(h,n)] = 'C'
                                     h += 1
                                 break
-                        print g ####
                     if len(deadends) == 0:
+                        print 'deadends fixed!' ####
                         break
     for d in newdoors:
         doors.append(d)
     for end in deadends:
-        print end ####
+        print 'deadends abandoned:', end ####
         space[end] = 'C'
     return space
 
