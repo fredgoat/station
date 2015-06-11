@@ -48,7 +48,7 @@ class Grid(object):
         window = filter(lambda x: windex[0]<=x[0]<winwidth+windex[0] and windex[1]<=x[1]<winheight+windex[1], space.keys())
         for point in window:            # then get all the relevant points from space
             m, n = point
-            self.grid[n][m] = space[(m-coordinate[0],n-coordinate[1])]
+            self.grid[n][m] = space[(m-windex[0],n-windex[1])]
     def border(self, border = 'X'):
         for a in range(winwidth):
             self.grid[0][a] = border
@@ -66,7 +66,7 @@ class Grid(object):
         return joined
 
 def is_character(space, coordinate, character=' '):
-    if not coordinate in space:
+    if not coordinate in space.keys():
         if ' ' == character:
             return True
         else:
@@ -153,15 +153,20 @@ def link_corridors(space, coordinate, cwidth, cheight, doors, attempt=1):      #
         return space
     else:                                                       # Or are they unlinked?  Let's fix that
         flood(space, (m,n), 'C', 'Z')                           # flood the first door's corridors with Zs
+        print 'flood entry confirmation:', space[(m,n)]
         unattached = filter(lambda door: is_character(space, entry(space, coordinate, cwidth, cheight, door), 'C'), doors)
         attached = filter(lambda door: is_character(space, entry(space, coordinate, cwidth, cheight, door), 'Z'), doors)  ##### somehow there are no attached!  Did flooding work?
         print 'on attempt', attempt, 'the attached doors were', attached, 'and the unattached doors were', unattached
         un = entry(space, coordinate, cwidth, cheight, unattached[randint(0,len(unattached)-1)])
         at = entry(space, coordinate, cwidth, cheight, attached[randint(0,len(attached)-1)])
-        point = (randint(min(max(randint(x,x+cwidth/4),un[0]),randint(x+cwidth*3/4,x+cwidth-1)),\
-                         min(max(randint(x,x+cwidth/4),at[0]),randint(x+cwidth*3/4,x+cwidth-1))),\
-                 randint(min(max(randint(y,y+cheight/4),un[1]),randint(y+cheight*3/4,y+cheight-1)),\
-                         min(max(randint(y,y+cheight/4),at[1]),randint(y+cheight*3/4,y+cheight-1))))
+        print 'un:', un, 'at:', at ####
+        print 'x:', x, 'x+cwidth/4:', x+cwidth/4, 'x+cwidth*3/4:', x+cwidth*3/4, 'x+cwidth-1:', x+cwidth-1 ####
+        print 'y:', y, 'y+cheight/4:', y+cheight/4, 'y+cheight*3/4:', y+cheight*3/4, 'y+cheight-1:', y+cheight-1 ####
+        xunish = min(max(randint(x,x+cwidth/4), un[0]), randint(x+cwidth*3/4,x+cwidth-1))
+        xatish = min(max(randint(x,x+cwidth/4), at[0]), randint(x+cwidth*3/4,x+cwidth-1))
+        yunish = min(max(randint(y,y+cheight/4), un[1]), randint(y+cheight*3/4,y+cheight-1))
+        yatish = min(max(randint(y,y+cheight/4), at[1]), randint(y+cheight*3/4,y+cheight-1))
+        point = (randint(min(xunish,xatish), max(xunish,xatish)), randint(min(yunish, yatish), max(yunish, yatish))
         point = (un[0] + (point[0]-un[0])/attempt, at[1] + (point[1]-at[1])/attempt) # the more attempts, the closer to x = C entry, y = Z entry
         p, q = point
         go = ['n','s','e','w']
@@ -429,7 +434,6 @@ def place_nscorridors(space, coordinate, cwidth, cheight, doors, nsprob, ewprob)
                         newdoors.append((x+spot,y+cheight-cl-1))
     for d in newdoors:
         doors.append(d)
-    print 'doors:', doors ####
     place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob, ewprob)
     return space
 
@@ -587,6 +591,7 @@ def place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob
                         break
     for d in newdoors:
         doors.append(d)
+    print 'doors:', doors ####
     for end in deadends:
         print 'deadends abandoned:', end ####
         space[end] = 'C'
