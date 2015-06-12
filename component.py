@@ -86,16 +86,15 @@ def is_area(space, coordinate, width, height, character=' '):
 
 def flood(space, coordinate, target, replacement):
     x, y = coordinate
-    Q = []
+    Q = [coordinate]
     if not is_character(space, coordinate, target):          # are we starting with the right character?
         return space
-    Q.append(coordinate)
     for co in Q:
         w = co
         e = co
-        while is_character(space, (w[0],w[1]), target):
+        while is_character(space, (w[0]-1,w[1]), target):
             w = (w[0]-1, w[1])
-        while is_character(space, (e[0],e[1]), target):      # mark off a line
+        while is_character(space, (e[0]+1,e[1]), target):      # mark off a line
             e = (e[0]+1, e[1])
         for n in range(e[0]-w[0]+1):
             space[(w[0]+n,co[1])] = replacement                         # fill it in
@@ -153,7 +152,7 @@ def link_corridors(space, coordinate, cwidth, cheight, doors, attempt=1):      #
         return space
     else:                                                       # Or are they unlinked?  Let's fix that
         flood(space, (m,n), 'C', 'Z')                           # flood the first door's corridors with Zs
-        print 'flood entry confirmation:', space[(m,n)]
+        print 'flood entry confirmation:', is_character(space, entry(space, coordinate, cwidth, cheight, (m,n)), 'Z')
         unattached = filter(lambda door: is_character(space, entry(space, coordinate, cwidth, cheight, door), 'C'), doors)
         attached = filter(lambda door: is_character(space, entry(space, coordinate, cwidth, cheight, door), 'Z'), doors)  ##### somehow there are no attached!  Did flooding work?
         print 'on attempt', attempt, 'the attached doors were', attached, 'and the unattached doors were', unattached
@@ -166,8 +165,10 @@ def link_corridors(space, coordinate, cwidth, cheight, doors, attempt=1):      #
         xatish = min(max(randint(x,x+cwidth/4), at[0]), randint(x+cwidth*3/4,x+cwidth-1))
         yunish = min(max(randint(y,y+cheight/4), un[1]), randint(y+cheight*3/4,y+cheight-1))
         yatish = min(max(randint(y,y+cheight/4), at[1]), randint(y+cheight*3/4,y+cheight-1))
-        point = (randint(min(xunish,xatish), max(xunish,xatish)), randint(min(yunish, yatish), max(yunish, yatish))
-        point = (un[0] + (point[0]-un[0])/attempt, at[1] + (point[1]-at[1])/attempt) # the more attempts, the closer to x = C entry, y = Z entry
+        point = (randint(min(xunish,xatish), max(xunish,xatish)), randint(min(yunish, yatish), max(yunish, yatish)))
+        point = (un[0] + int(round(float((point[0]-un[0]))/attempt)),\
+                 at[1] + int(round(float((point[1]-at[1]))/attempt)))
+        # the more attempts, the closer to x = C entry, y = Z entry
         p, q = point
         go = ['n','s','e','w']
         ways = {'n':'?', 's':'?', 'e':'?', 'w':'?'}
