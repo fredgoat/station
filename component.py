@@ -104,7 +104,7 @@ def flood(space, coordinate, target, replacement):
 #            if co[1] < len(grid)-1:
             if is_character(space, (w[0]+n,co[1]+1), target):
                 Q.append((w[0]+n,co[1]+1))                          # ...or south
-        return space
+    return space
 
 def entry(space, coordinate, cwidth, cheight, door):    # this function gives the entry of a door, given its component's size and coordinate
     x, y = coordinate
