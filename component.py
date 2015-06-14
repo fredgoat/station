@@ -85,25 +85,25 @@ def is_area(space, coordinate, width, height, character=' '):
     return True
 
 def flood(space, coordinate, target, replacement):
-    x, y = coordinate
-    Q = [coordinate]
+    q = [coordinate]
     if not is_character(space, coordinate, target):          # are we starting with the right character?
         return space
-    for co in Q:
+    while q:
+        co = q.pop(0)
         w = co
         e = co
         while is_character(space, (w[0]-1,w[1]), target):
             w = (w[0]-1, w[1])
         while is_character(space, (e[0]+1,e[1]), target):      # mark off a line
             e = (e[0]+1, e[1])
-        for n in range(e[0]-w[0]+1):
-            space[(w[0]+n,co[1])] = replacement                         # fill it in
+        for pt in range(e[0]-w[0]+1):
+            space[(w[0]+pt,co[1])] = replacement                         # fill it in
 #            if co[1] > 0:
-            if is_character(space, (w[0]+n,co[1]-1), target):
-                Q.append((w[0]+n, co[1]-1))                         # add any "targets" to the list if they're north of the filled point
+            if is_character(space, (w[0]+pt,co[1]-1), target):
+                q.append((w[0]+pt, co[1]-1))                         # add any "targets" to the list if they're north of the filled point
 #            if co[1] < len(grid)-1:
-            if is_character(space, (w[0]+n,co[1]+1), target):
-                Q.append((w[0]+n,co[1]+1))                          # ...or south
+            if is_character(space, (w[0]+pt,co[1]+1), target):
+                q.append((w[0]+pt,co[1]+1))                          # ...or south
     return space
 
 def entry(space, coordinate, cwidth, cheight, door):    # this function gives the entry of a door, given its component's size and coordinate
@@ -125,7 +125,7 @@ def corridors_linked(space, coordinate, cwidth, cheight, doors):
     linked = True
     d = doors[0]
     m, n = entry(space, coordinate, cwidth, cheight, d)
-    others = doors
+    others = list(doors)
     others.remove(d)
     flood(space, (m,n), 'C', 'Z')                         # flood the first door's corridors with Zs
     for o in others:
@@ -152,10 +152,10 @@ def link_corridors(space, coordinate, cwidth, cheight, doors, attempt=1):      #
         return space
     else:                                                       # Or are they unlinked?  Let's fix that
         flood(space, (m,n), 'C', 'Z')                           # flood the first door's corridors with Zs
-        print 'flood entry confirmation:', is_character(space, entry(space, coordinate, cwidth, cheight, (m,n)), 'Z')
+        print 'flood entry confirmation:', is_character(space, (m,n), 'Z'), 'doors:', doors
         unattached = filter(lambda door: is_character(space, entry(space, coordinate, cwidth, cheight, door), 'C'), doors)
-        attached = filter(lambda door: is_character(space, entry(space, coordinate, cwidth, cheight, door), 'Z'), doors)  ##### somehow there are no attached!  Did flooding work?
-        print 'on attempt', attempt, 'the attached doors were', attached, 'and the unattached doors were', unattached
+        attached = filter(lambda door: is_character(space, entry(space, coordinate, cwidth, cheight, door), 'Z'), doors)  # somehow there are no attached!  Did flooding work?
+        print 'on attempt', attempt, 'the attached doors were', attached, 'and the unattached doors were', unattached ####
         un = entry(space, coordinate, cwidth, cheight, unattached[randint(0,len(unattached)-1)])
         at = entry(space, coordinate, cwidth, cheight, attached[randint(0,len(attached)-1)])
         print 'un:', un, 'at:', at ####
@@ -167,8 +167,8 @@ def link_corridors(space, coordinate, cwidth, cheight, doors, attempt=1):      #
         yatish = min(max(randint(y,y+cheight/4), at[1]), randint(y+cheight*3/4,y+cheight-1))
         point = (randint(min(xunish,xatish), max(xunish,xatish)), randint(min(yunish, yatish), max(yunish, yatish)))
         point = (un[0] + int(round(float((point[0]-un[0]))/attempt)),\
-                 at[1] + int(round(float((point[1]-at[1]))/attempt)))
-        # the more attempts, the closer to x = C entry, y = Z entry
+                 at[1] + int(round(float((point[1]-at[1]))/attempt))) # the more attempts, the closer to x = C entry, y = Z entry
+        print "point:", point ####
         p, q = point
         go = ['n','s','e','w']
         ways = {'n':'?', 's':'?', 'e':'?', 'w':'?'}
@@ -604,6 +604,9 @@ def place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob
 '''
 #import doctest
 #doctest.testmod()
+
+#import pdb
+#pdb.set_trace()
 
 grid = Grid(winwidth, winheight)
 space = place_nscomponent(space, (winwidth/2,winheight/2), {}, [], 1.0, 0.3)
