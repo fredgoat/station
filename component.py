@@ -167,21 +167,18 @@ def link_corridors(space, coordinate, cwidth, cheight, doors, attempt=1):      #
     linked = True
     d = doors[0]
     m, n = entry(space, coordinate, cwidth, cheight, d)
-    print 'flood entry:', (m, n) ####
     if corridors_linked(space, coordinate, cwidth, cheight, doors): # are they already linked?
         print 'linked before attempt', attempt ####
         return space
     else:                                                       # Or are they unlinked?  Let's fix that
         flood(space, (m,n), 'C', 'Z')                           # flood the first door's corridors with Zs
-        print 'flood entry confirmation:', is_character(space, (m,n), 'Z'), 'doors:', doors
         unattached = filter(lambda door: is_character(space, entry(space, coordinate, cwidth, cheight, door), 'C'), doors)
         attached = filter(lambda door: is_character(space, entry(space, coordinate, cwidth, cheight, door), 'Z'), doors)  # somehow there are no attached!  Did flooding work?
-        print 'on attempt', attempt, 'the attached doors were', attached, 'and the unattached doors were', unattached ####
         un = entry(space, coordinate, cwidth, cheight, unattached[randint(0,len(unattached)-1)])
         at = entry(space, coordinate, cwidth, cheight, attached[randint(0,len(attached)-1)])
         print 'un:', un, 'at:', at ####
-        print 'x:', x, 'x+cwidth/4:', x+cwidth/4, 'x+cwidth*3/4:', x+cwidth*3/4, 'x+cwidth-1:', x+cwidth-1 ####
-        print 'y:', y, 'y+cheight/4:', y+cheight/4, 'y+cheight*3/4:', y+cheight*3/4, 'y+cheight-1:', y+cheight-1 ####
+#        print 'x:', x, 'x+cwidth/4:', x+cwidth/4, 'x+cwidth*3/4:', x+cwidth*3/4, 'x+cwidth-1:', x+cwidth-1 ####
+#        print 'y:', y, 'y+cheight/4:', y+cheight/4, 'y+cheight*3/4:', y+cheight*3/4, 'y+cheight-1:', y+cheight-1 ####
         xunish = min(max(randint(x,x+cwidth/4), un[0]), randint(x+cwidth*3/4,x+cwidth-1))
         xatish = min(max(randint(x,x+cwidth/4), at[0]), randint(x+cwidth*3/4,x+cwidth-1))
         yunish = min(max(randint(y,y+cheight/4), un[1]), randint(y+cheight*3/4,y+cheight-1))
@@ -198,36 +195,36 @@ def link_corridors(space, coordinate, cwidth, cheight, doors, attempt=1):      #
             if g == 'n':                                # can we find a 'Z' and a 'C' from our point?  Try going North
                 while q > y and not is_character(space, (p,q), 'Z') and not is_character(space, (p,q), 'C'):
                     q -= 1
-                if space[(p,q)] == 'Z':
+                if is_character(space, (p,q), 'Z'):
                     ways[g] = 'Z'
-                elif space[(p,q)] == 'C':
+                elif is_character(space, (p,q), 'C'):
                     ways[g] = 'C'
                 elif q == y:
                     ways[g] = 'W'
             elif g == 's':                              # or South
                 while q < y+cheight-1 and not is_character(space, (p,q), 'Z') and not is_character(space, (p,q), 'C'):
                     q += 1
-                if space[(p,q)] == 'Z':
+                if is_character(space, (p,q), 'Z'):
                     ways[g] = 'Z'
-                elif space[(p,q)] == 'C':
+                elif is_character(space, (p,q), 'C'):
                     ways[g] = 'C'
                 elif q == y+cheight-1:
                     ways[g] = 'W'
             elif g == 'e':                              # or East
                 while p < x+cwidth-1 and not is_character(space, (p,q), 'Z') and not is_character(space, (p,q), 'C'):
                     p += 1
-                if space[(p,q)] == 'Z':
+                if is_character(space, (p,q), 'Z'):
                     ways[g] = 'Z'
-                elif space[(p,q)] == 'C':
+                elif is_character(space, (p,q), 'C'):
                     ways[g] = 'C'
                 elif q == x+cwidth-1:
                     ways[g] = 'W'
             elif g == 'w':                              # or West
                 while q < x and not is_character(space, (p,q), 'Z') and not is_character(space, (p,q), 'C'):
                     q -= 1
-                if space[(p,q)] == 'Z':
+                if is_character(space, (p,q), 'Z'):
                     ways[g] = 'Z'
-                elif space[(p,q)] == 'C':
+                elif is_character(space, (p,q), 'C'):
                     ways[g] = 'C'
                 elif q == x:
                     ways[g] = 'W'
@@ -345,10 +342,9 @@ def link_corridors(space, coordinate, cwidth, cheight, doors, attempt=1):      #
             if corridors_linked(space, coordinate, cwidth, cheight, doors):     # did THAT work?
                 print 'linked after overshooting a C on attempt', attempt ####
                 return space
-        else:                       # fine!  Let's try closer to "un" and "at".
-            flood(space, (m,n), 'Z', 'C')
-            link_corridors(space, coordinate, cwidth, cheight, doors, attempt+1)
-            return space
+        flood(space, (m,n), 'Z', 'C')  # fine!  Let's try closer to "un" and "at".
+        link_corridors(space, coordinate, cwidth, cheight, doors, attempt+1)
+        return space
 
 @check_return_not_none
 def place_nscomponent(space, coordinate, flavor, doors, nsprob, ewprob):
