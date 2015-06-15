@@ -22,6 +22,25 @@ windex = (0,0)
 
 #blank_map_rows = [' '*gridwidth for x in xrange(gridheight)]
 
+def check_return_not_none(func):
+    '''A decorator for checking that a function is not returning None.
+    If it is none, it will start a debugging session.'''
+
+    def decorated_function(*args):
+        return_value = func(*args)
+        if return_value is None:
+            import traceback
+            import pdb
+
+            print 'Function "%s" returned None in' % func.__name__
+            traceback.print_stack()
+
+            pdb.set_trace()
+
+        return return_value
+
+    return decorated_function
+
 class Grid(object):
     def __init__(self, width=winwidth, height=winheight, character=' '):
         self.grid = [[character for x in xrange(width)] for y in xrange(height)]
@@ -84,6 +103,7 @@ def is_area(space, coordinate, width, height, character=' '):
                 return False
     return True
 
+@check_return_not_none
 def flood(space, coordinate, target, replacement):
     q = [coordinate]
     if not is_character(space, coordinate, target):          # are we starting with the right character?
@@ -135,6 +155,7 @@ def corridors_linked(space, coordinate, cwidth, cheight, doors):
     flood(space, (m,n), 'Z', 'C')
     return linked
 
+@check_return_not_none
 def link_corridors(space, coordinate, cwidth, cheight, doors, attempt=1):      # this fxn attempts to link the corridors in a component
     if attempt > 20 or len(doors) == 0:
         return space
@@ -329,6 +350,7 @@ def link_corridors(space, coordinate, cwidth, cheight, doors, attempt=1):      #
             link_corridors(space, coordinate, cwidth, cheight, doors, attempt+1)
             return space
 
+@check_return_not_none
 def place_nscomponent(space, coordinate, flavor, doors, nsprob, ewprob):
     x, y = coordinate
     crashcount = 0
@@ -350,6 +372,7 @@ def place_nscomponent(space, coordinate, flavor, doors, nsprob, ewprob):
             components.append(dict(coordinate=coordinate, cwidth=cwidth, cheight=cheight, flavor=flavor, doors=doors)) # store the comp
     return space
 
+@check_return_not_none
 def place_ewcomponent(space, coordinate, flavor, doors, ewprob, nsprob):
     x, y = coordinate
     crashcount = 0
@@ -369,6 +392,7 @@ def place_ewcomponent(space, coordinate, flavor, doors, ewprob, nsprob):
             components.append(dict(coordinate=coordinate, cwidth=cwidth, cheight=cheight, flavor=flavor, doors=doors)) # store the comp
     return space
 
+@check_return_not_none
 def place_nscorridors(space, coordinate, cwidth, cheight, doors, nsprob, ewprob):
     x, y = coordinate                               # top left coordinate of the component
     ndoors = filter(lambda coord: coord[0]==y-1,doors)          # north doors (each is an (x,y) just outside the comp)
@@ -438,6 +462,7 @@ def place_nscorridors(space, coordinate, cwidth, cheight, doors, nsprob, ewprob)
     place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob, ewprob)
     return space
 
+@check_return_not_none
 def place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob, ewprob):
     x, y = coordinate
     ndoors = filter(lambda coord: coord[1]==y-1,doors)              # north doors
