@@ -20,7 +20,7 @@ from random import random, randint, seed
 
 super_seed = randint(1,1000)
 print "Today's seed is", super_seed
-seed(super_seed)    # this will let you go back to good randomnesses
+seed(255)    # this will let you go back to good randomnesses
 
 decay           = 0.8     # component branches die off by a power of this
 winwidth        = 30      # window dimensions
@@ -34,7 +34,7 @@ comp_multiplier = 2
 
 components = []
 outer_space = {}
-windex = (0,0)
+windex = (winwidth/-2,winheight/-2)
 
 
 def check_return_not_none(func):
@@ -82,6 +82,7 @@ class Grid(object):
         window = filter(lambda x: windex[0]<=x[0]<winwidth+windex[0] and windex[1]<=x[1]<winheight+windex[1], space.keys())
         for point in window:            # then get all the relevant points from space
             m, n = point
+            pdb.set_trace()
             self.grid[n][m] = space[(m-windex[0],n-windex[1])]
 
     def border(self, border = 'X'):
@@ -373,16 +374,21 @@ def link_corridors(space, coordinate, cwidth, cheight, doors, attempt=1):      #
 
 
 @check_return_not_none
-def place_nscomponent(space, coordinate, flavor, doors, nsprob, ewprob):
-    x, y = coordinate
+def place_nscomponent(space, cindex, flavor, doors, nsprob, ewprob):
+    a, b = cindex
     crashcount = 0
     while crashcount * (1+len(components)) < 100:    # try this until you get it, but don't die.
-        cwidth  = randint(mincompwidth + 3, maxcompwidth)
-        cheight = randint(mincompheight, maxcompheight - 6)
+        half_width  = randint(mincompwidth + 3, maxcompwidth) / 2
+        half_height = randint(mincompheight, maxcompheight - 6) / 2
         crashcount += 1
         if random() < bigcompfreq:          # maybe this is a super big component?
-            cwidth  *= comp_multiplier
-            cheight *= comp_multiplier
+            half_width  *= comp_multiplier
+            half_height *= comp_multiplier
+        cwidth = 2 * half_width + 1
+        cheight = 2 * half_height + 1
+        x = cindex[0] - half_width
+        y = cindex[1] - half_height
+        coordinate = (x, y)
         if is_area(space, coordinate, cwidth, cheight): # blocked?
             print 'coordinate:', coordinate, 'extremity:', (x+cwidth-1,y+cheight-1), 'width:', cwidth, 'height:', cheight ####
             for ln in range(cheight):       # if not, place component
@@ -650,11 +656,11 @@ def place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob
 
 
 grid = Grid(winwidth, winheight)      # okay, make a blank screen
-outer_space = place_nscomponent(outer_space, (3,3), {}, [], 1.0, 0.3)  # put components in space
+outer_space = place_nscomponent(outer_space, (0,0), {}, [], 1.0, 0.3)  # put components in space
 
 grid.update(outer_space)              # put that space on the screen
 grid.border()                         # make it look nice
 print grid
 
 # Do:  Make doors spawn components, write place_ewcorridors, place_nwbranches, place_equipment
-# ns doorspawn - if it spawns from north doors, cheight is normal, if south it's inverted.  Overhaul cwidth & coordinate to be centered.
+# ns doorspawn - if it spawns from north doors, cheight is normal, if south it's inverted.  Fix grids & finish making cindex.
