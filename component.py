@@ -4,7 +4,11 @@ which define equipment areas and spawn airlocks, which spawn more components.
 Then you fill in the equipment, according to that component's flava.
 '''
 
-from random import random, randint
+#time.time() try piecharm editor instead of idle? @ decorates a function with another function, so the first one runs inside the second
+
+from random import random, randint, seed
+
+seed(0) #this will make all the randoms the same every time
 
 decay           = 0.8     # component branches die off by a power of this
 winwidth        = 40      # window dimensions
@@ -624,10 +628,13 @@ def place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob
 ['  ', 'x ']
 '''
 #import doctest
-#doctest.testmod()
+#doctest.testmod() returns None if all of the fake Python sessions in all the comments in the module run exactly as such
 
 #import pdb
-#pdb.set_trace()
+#pdb.set_trace() stops the programs and lets you do pdb commands
+
+#import traceback
+#traceback.print_stack() just prints the stack at that point
 
 grid = Grid(winwidth, winheight)
 space = place_nscomponent(space, (winwidth/2,winheight/2), {}, [], 1.0, 0.3)
