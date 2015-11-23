@@ -4,15 +4,27 @@ which define equipment areas and spawn airlocks, which spawn more components.
 Then you fill in the equipment, according to that component's flava.
 """
 
-#time.time() try piecharm editor instead of idle? @ decorates a function with another function, so the first one runs inside the second
+# time.time() @ decorates a function with another function, so the first one runs inside the second
+
+# import doctest
+# doctest.testmod() returns None if all fake Python sessions in comments in this module do what they say (like so)
+'''
+>>> place_character(['  ', '  '], (0, 1), 'x')
+['  ', 'x ']
+'''
+
+import pdb         # pdb.set_trace() stops everything and lets you do pdb commands
+import traceback   # traceback.print_stack() just prints the stack at that point
 
 from random import random, randint, seed
 
-seed(0) #this will make all the randoms the same every time
+super_seed = randint(1,1000)
+print "Today's seed is", super_seed
+seed(super_seed)    # this will let you go back to good randomnesses
 
 decay           = 0.8     # component branches die off by a power of this
-winwidth        = 40      # window dimensions
-winheight       = 40
+winwidth        = 30      # window dimensions
+winheight       = 30
 mincompheight   = 4       # component dimensions
 mincompwidth    = 4
 maxcompheight   = 12
@@ -21,10 +33,8 @@ bigcompfreq     = 0.15    # how often are comps bigger than max & by what factor
 comp_multiplier = 2
 
 components = []
-space = {}
+outer_space = {}
 windex = (0,0)
-
-# blank_map_rows = [' '*gridwidth for x in xrange(gridheight)]
 
 
 def check_return_not_none(func):
@@ -34,12 +44,8 @@ def check_return_not_none(func):
     def decorated_function(*args):
         return_value = func(*args)
         if return_value is None:
-            import traceback
-            import pdb
-
             print 'Function "%s" returned None in' % func.__name__
             traceback.print_stack()
-
             pdb.set_trace()
 
         return return_value
@@ -174,7 +180,7 @@ def corridors_linked(space, coordinate, cwidth, cheight, doors):
 
 @check_return_not_none
 def link_corridors(space, coordinate, cwidth, cheight, doors, attempt=1):      # this fxn attempts to link the corridors in a component
-    if attempt > 20 or len(doors) == 0:
+    if attempt > 10 or len(doors) == 0:
         return space
     x, y = coordinate
     ndoors = filter(lambda coord: coord[1]==y-1,doors)              # north doors
@@ -190,85 +196,87 @@ def link_corridors(space, coordinate, cwidth, cheight, doors, attempt=1):      #
     else:                                                       # Or are they unlinked?  Let's fix that
         flood(space, (m,n), 'C', 'Z')                           # flood the first door's corridors with Zs
         unattached = filter(lambda door: is_character(space, entry(space, coordinate, cwidth, cheight, door), 'C'), doors)
-        attached = filter(lambda door: is_character(space, entry(space, coordinate, cwidth, cheight, door), 'Z'), doors)  # somehow there are no attached!  Did flooding work?
+        attached = filter(lambda door: is_character(space, entry(space, coordinate, cwidth, cheight, door), 'Z'), doors)
         un = entry(space, coordinate, cwidth, cheight, unattached[randint(0,len(unattached)-1)])
         at = entry(space, coordinate, cwidth, cheight, attached[randint(0,len(attached)-1)])
         print 'un:', un, 'at:', at ####
-#        print 'x:', x, 'x+cwidth/4:', x+cwidth/4, 'x+cwidth*3/4:', x+cwidth*3/4, 'x+cwidth-1:', x+cwidth-1 ####
-#        print 'y:', y, 'y+cheight/4:', y+cheight/4, 'y+cheight*3/4:', y+cheight*3/4, 'y+cheight-1:', y+cheight-1 ####
         xunish = min(max(randint(x,x+cwidth/4), un[0]), randint(x+cwidth*3/4,x+cwidth-1))
         xatish = min(max(randint(x,x+cwidth/4), at[0]), randint(x+cwidth*3/4,x+cwidth-1))
         yunish = min(max(randint(y,y+cheight/4), un[1]), randint(y+cheight*3/4,y+cheight-1))
         yatish = min(max(randint(y,y+cheight/4), at[1]), randint(y+cheight*3/4,y+cheight-1))
         point = (randint(min(xunish,xatish), max(xunish,xatish)), randint(min(yunish, yatish), max(yunish, yatish)))
-        point = (un[0] + int(round(float((point[0]-un[0]))/attempt)),\
-                 at[1] + int(round(float((point[1]-at[1]))/attempt))) # the more attempts, the closer to x = C entry, y = Z entry
+        point = (un[0] + int(round(float(point[0]-un[0])/attempt)),
+                 at[1] + int(round(float(point[1]-at[1])/attempt))) # the more attempts, the closer to x = C entry, y = Z entry
         print "point:", point ####
         p, q = point
         go = ['n','s','e','w']
         ways = {'n':'?', 's':'?', 'e':'?', 'w':'?'}
         for g in go:
-            go.remove(g)
+            r = p
+            s = q
             if g == 'n':                                # can we find a 'Z' and a 'C' from our point?  Try going North
-                while q > y and not is_character(space, (p,q), 'Z') and not is_character(space, (p,q), 'C'):
-                    q -= 1
-                if is_character(space, (p,q), 'Z'):
+                while s > y and not is_character(space, (p,s), 'Z') and not is_character(space, (p,s), 'C'):
+                    s -= 1
+                if is_character(space, (p,s), 'Z'):
                     ways[g] = 'Z'
-                elif is_character(space, (p,q), 'C'):
+                elif is_character(space, (p,s), 'C'):
                     ways[g] = 'C'
-                elif q == y:
+                elif s == y:
                     ways[g] = 'W'
             elif g == 's':                              # or South
-                while q < y+cheight-1 and not is_character(space, (p,q), 'Z') and not is_character(space, (p,q), 'C'):
-                    q += 1
-                if is_character(space, (p,q), 'Z'):
+                while s < y+cheight-1 and not is_character(space, (p,s), 'Z') and not is_character(space, (p,s), 'C'):
+                    s += 1
+                if is_character(space, (p,s), 'Z'):
                     ways[g] = 'Z'
-                elif is_character(space, (p,q), 'C'):
+                elif is_character(space, (p,s), 'C'):
                     ways[g] = 'C'
-                elif q == y+cheight-1:
+                elif s == y+cheight-1:
                     ways[g] = 'W'
             elif g == 'e':                              # or East
-                while p < x+cwidth-1 and not is_character(space, (p,q), 'Z') and not is_character(space, (p,q), 'C'):
-                    p += 1
-                if is_character(space, (p,q), 'Z'):
+                while r < x+cwidth-1 and not is_character(space, (r,q), 'Z') and not is_character(space, (r,q), 'C'):
+                    r += 1
+                if is_character(space, (r,q), 'Z'):
                     ways[g] = 'Z'
-                elif is_character(space, (p,q), 'C'):
+                elif is_character(space, (r,q), 'C'):
                     ways[g] = 'C'
-                elif q == x+cwidth-1:
+                elif r == x+cwidth-1:
                     ways[g] = 'W'
             elif g == 'w':                              # or West
-                while q < x and not is_character(space, (p,q), 'Z') and not is_character(space, (p,q), 'C'):
-                    q -= 1
-                if is_character(space, (p,q), 'Z'):
+                while r > x and not is_character(space, (r,q), 'Z') and not is_character(space, (r,q), 'C'):
+                    r -= 1
+                if is_character(space, (r,q), 'Z'):
                     ways[g] = 'Z'
-                elif is_character(space, (p,q), 'C'):
+                elif is_character(space, (r,q), 'C'):
                     ways[g] = 'C'
-                elif q == x:
+                elif r == x:
                     ways[g] = 'W'
         cways = filter(lambda dir: ways[dir]=='C', ways.keys())
         zways = filter(lambda dir: ways[dir]=='Z', ways.keys())
         if len(cways) != 0 and len(zways) != 0:                 # it worked?  So easy!  Let's connect them.
-            linkways = cways[randint(0,len(cways)-1)] + zways[randint(0,len(zways)-1)]
+            linkways = [cways[randint(0,len(cways)-1)]] + [zways[randint(0,len(zways)-1)]]
             for way in linkways:
-                linkways.remove(way)
                 r = p
                 s = q
                 if way == 'n':                           # go the way to the C or Z, and then connect "point" to the C or Z
+                    s -= 1
                     while not is_character(space, (r,s), 'C') and not is_character(space, (r,s), 'Z'):
                         s -= 1
                     for k in range(q-s):
                         space[(p,q-k)] = 'Z'
                 elif way == 's':
+                    s += 1
                     while not is_character(space, (r,s), 'C') and not is_character(space, (r,s), 'Z'):
                         s += 1
                     for k in range(s-q):
                         space[(p,q+k)] = 'Z'
                 elif way == 'e':
+                    r += 1
                     while not is_character(space, (r,s), 'C') and not is_character(space, (r,s), 'Z'):
                         r += 1
                     for k in range(r-p):
                         space[(p+k,q)] = 'Z'
                 else:
+                    r -= 1
                     while not is_character(space, (r,s), 'C') and not is_character(space, (r,s), 'Z'):
                         r -= 1
                     for k in range(p-r):
@@ -279,7 +287,7 @@ def link_corridors(space, coordinate, cwidth, cheight, doors, attempt=1):      #
                 return space
             else:               # that didn't work?!?
                 print "link_corridors must have found a way to connect, but couldn't.  Whyever not?"
-        elif zways != 0:
+        elif len(zways) != 0:
             for zw in zways:    # we can only see Zs from here?  Go past them and maybe we'll connect to Cs.
                 r = p
                 s = q
@@ -319,41 +327,41 @@ def link_corridors(space, coordinate, cwidth, cheight, doors, attempt=1):      #
             if corridors_linked(space, coordinate, cwidth, cheight, doors):   # did it work?
                 print 'linked after overshooting a Z on attempt', attempt ####
                 return space
-        elif cways != 0:
+        elif len(cways) != 0:
             for cw in cways:    # or maybe we can only see Cs?  Go past them and maybe we'll connect to Zs???
                 r = p
                 s = q
                 if cw == 'n':
-                    while not is_character(space, (r,s), 'C') and not s == y:
+                    while not is_character(space, (r,s), 'Z') and not s == y:
                         s -= 1
-                    if is_character(space, (r,s), 'C'):
+                    if is_character(space, (r,s), 'Z'):
                         s += 1
-                        while not is_character(space, (r,s), 'Z'):
-                            space[(r,s)] = 'C'
+                        while not is_character(space, (r,s), 'C'):
+                            space[(r,s)] = 'Z'
                             s += 1
                 elif cw == 's':
-                    while not is_character(space, (r,s), 'C') and not s == y+cheight-1:
+                    while not is_character(space, (r,s), 'Z') and not s == y+cheight-1:
                         s += 1
-                    if is_character(space, (r,s), 'C'):
+                    if is_character(space, (r,s), 'Z'):
                         s -= 1
-                        while not is_character(space, (r,s), 'Z'):
-                            space[(r,s)] = 'C'
+                        while not is_character(space, (r,s), 'C'):
+                            space[(r,s)] = 'Z'
                             s -= 1
                 elif cw == 'e':
-                    while not is_character(space, (r,s), 'C') and not r == x+cwidth-1:
+                    while not is_character(space, (r,s), 'Z') and not r == x+cwidth-1:
                         r += 1
-                    if is_character(space, (r,s), 'C'):
+                    if is_character(space, (r,s), 'Z'):
                         r -= 1
-                        while not is_character(space, (r,s), 'Z'):
-                            space[(r,s)] = 'C'
+                        while not is_character(space, (r,s), 'C'):
+                            space[(r,s)] = 'Z'
                             r -= 1
                 else:
-                    while not is_character(space, (r,s), 'C') and not r == x:
+                    while not is_character(space, (r,s), 'Z') and not r == x:
                         r -= 1
-                    if is_character(space, (r,s), 'C'):
+                    if is_character(space, (r,s), 'Z'):
                         r += 1
-                        while not is_character(space, (r,s), 'Z'):
-                            space[(r,s)] = 'C'
+                        while not is_character(space, (r,s), 'C'):
+                            space[(r,s)] = 'Z'
                             r += 1
             flood(space, (m,n), 'Z', 'C')
             if corridors_linked(space, coordinate, cwidth, cheight, doors):     # did THAT work?
@@ -368,10 +376,10 @@ def link_corridors(space, coordinate, cwidth, cheight, doors, attempt=1):      #
 def place_nscomponent(space, coordinate, flavor, doors, nsprob, ewprob):
     x, y = coordinate
     crashcount = 0
-    while len(components) == 0 and crashcount < 100:    # try this until you get it, but don't die.
+    while crashcount * (1+len(components)) < 100:    # try this until you get it, but don't die.
         cwidth  = randint(mincompwidth + 3, maxcompwidth)
         cheight = randint(mincompheight, maxcompheight - 6)
-        crashcount = crashcount + 1
+        crashcount += 1
         if random() < bigcompfreq:          # maybe this is a super big component?
             cwidth  *= comp_multiplier
             cheight *= comp_multiplier
@@ -391,7 +399,7 @@ def place_nscomponent(space, coordinate, flavor, doors, nsprob, ewprob):
 def place_ewcomponent(space, coordinate, flavor, doors, ewprob, nsprob):
     x, y = coordinate
     crashcount = 0
-    while len(components) == 0 and crashcount < 100:
+    while crashcount * (1+len(components)) < 100:
         cwidth  = randint(mincompwidth, maxcompwidth - 6)
         cheight = randint(mincompheight + 3, maxcompheight)
         crashcount += 1
@@ -530,7 +538,7 @@ def place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob
         while branches > 0 and crashcount < 100:        # place any other branches at random
             crashcount += 1
             spot = randint(0,cheight-1)
-            if eokay == True and randint(0,1) == 1:       # do those start at the east?
+            if eokay and randint(0,1) == 1:       # do those start at the east?
                 if is_character(space, (x+cwidth-1,y+spot), '#') and not is_character(space, (x,y+spot+1), 'C') \
                    and not is_character(space, (x,y+spot-1), 'C') and not is_character(space, (x+cwidth-1,y+spot-1), 'C') \
                    and not is_character(space, (x+cwidth-1,y+spot+1), 'C'):
@@ -547,7 +555,7 @@ def place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob
                             space[(m,n)] = 'C'
                         m -= 1
                     branches -= 1
-            elif wokay == True:                       # or west?
+            elif wokay:                       # or west?
                 if is_character(space, (x,y+spot), '#') and not is_character(space, (x,y+spot+1), 'C') \
                    and not is_character(space, (x,y+spot-1), 'C') and not is_character(space, (x+cwidth-1,y+spot-1), 'C') \
                    and not is_character(space, (x+cwidth-1,y+spot+1), 'C'):
@@ -640,31 +648,13 @@ def place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob
         space[end] = 'C'
     return space
 
-'''
->>> place_character(['  ', '  '], (0, 1), 'x')
-['  ', 'x ']
-'''
-<<<<<<< HEAD
 
-# import doctest
-# doctest.testmod()
+grid = Grid(winwidth, winheight)      # okay, make a blank screen
+outer_space = place_nscomponent(outer_space, (3,3), {}, [], 1.0, 0.3)  # put components in space
 
-# import pdb
-# pdb.set_trace()
-=======
-#import doctest
-#doctest.testmod() returns None if all of the fake Python sessions in all the comments in the module run exactly as such
-
-#import pdb
-#pdb.set_trace() stops the programs and lets you do pdb commands
-
-#import traceback
-#traceback.print_stack() just prints the stack at that point
->>>>>>> origin/master
-
-grid = Grid(winwidth, winheight)
-space = place_nscomponent(space, (winwidth/2,winheight/2), {}, [], 1.0, 0.3)
-
-grid.update(space)
-grid.border()
+grid.update(outer_space)              # put that space on the screen
+grid.border()                         # make it look nice
 print grid
+
+# Do:  Make doors spawn components, write place_ewcorridors, place_nwbranches, place_equipment
+# ns doorspawn - if it spawns from north doors, cheight is normal, if south it's inverted.  Overhaul cwidth & coordinate to be centered.
