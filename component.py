@@ -1,8 +1,8 @@
 # python Documents\GitHub\station\compo.py
-''' So basically, you spawn a component, which spawns corridors,
+""" So basically, you spawn a component, which spawns corridors,
 which define equipment areas and spawn airlocks, which spawn more components.
 Then you fill in the equipment, according to that component's flava.
-'''
+"""
 
 from random import random, randint
 
@@ -20,11 +20,12 @@ components = []
 space = {}
 windex = (0,0)
 
-#blank_map_rows = [' '*gridwidth for x in xrange(gridheight)]
+# blank_map_rows = [' '*gridwidth for x in xrange(gridheight)]
+
 
 def check_return_not_none(func):
-    '''A decorator for checking that a function is not returning None.
-    If it is none, it will start a debugging session.'''
+    """A decorator for checking that a function is not returning None.
+    If it is none, it will start a debugging session."""
 
     def decorated_function(*args):
         return_value = func(*args)
@@ -41,9 +42,11 @@ def check_return_not_none(func):
 
     return decorated_function
 
+
 class Grid(object):
     def __init__(self, width=winwidth, height=winheight, character=' '):
         self.grid = [[character for x in xrange(width)] for y in xrange(height)]
+
     def ischar(self, coordinate, character=' '):
         x, y = coordinate
         line = self.grid[y]
@@ -59,15 +62,18 @@ class Grid(object):
             return True
         else:
             return False
+
     def placechar(self, coordinate, character):
         x, y = coordinate
         self.grid[y][x] = character
-    def update(self, space, character=' '):            
+
+    def update(self, space, character=' '):
         self.grid = [[character for x in xrange(winwidth)] for y in xrange(winheight)] # blank slate
         window = filter(lambda x: windex[0]<=x[0]<winwidth+windex[0] and windex[1]<=x[1]<winheight+windex[1], space.keys())
         for point in window:            # then get all the relevant points from space
             m, n = point
             self.grid[n][m] = space[(m-windex[0],n-windex[1])]
+
     def border(self, border = 'X'):
         for a in range(winwidth):
             self.grid[0][a] = border
@@ -75,6 +81,7 @@ class Grid(object):
         for b in range(winheight):
             self.grid[b][0] = border
             self.grid[b][winwidth-1] = border
+
     def __repr__(self):                 # print it!
         joined = ''
         for y in self.grid:
@@ -83,6 +90,7 @@ class Grid(object):
                 line += x
             joined += line + '\n'
         return joined
+
 
 def is_character(space, coordinate, character=' '):
     if not coordinate in space.keys():
@@ -95,6 +103,7 @@ def is_character(space, coordinate, character=' '):
     else:
         return False
 
+
 def is_area(space, coordinate, width, height, character=' '):
     x, y = coordinate
     for ln in range(height):       # is the area blocked?
@@ -102,6 +111,7 @@ def is_area(space, coordinate, width, height, character=' '):
             if not is_character(space, (x+pt, y+ln), character):
                 return False
     return True
+
 
 @check_return_not_none
 def flood(space, coordinate, target, replacement):
@@ -126,6 +136,7 @@ def flood(space, coordinate, target, replacement):
                 q.append((w[0]+pt,co[1]+1))                          # ...or south
     return space
 
+
 def entry(space, coordinate, cwidth, cheight, door):    # this function gives the entry of a door, given its component's size and coordinate
     x, y = coordinate
     m, n = door
@@ -139,6 +150,7 @@ def entry(space, coordinate, cwidth, cheight, door):    # this function gives th
         return (m,y+cheight-1)
     else:
         return False
+
 
 def corridors_linked(space, coordinate, cwidth, cheight, doors):
     x, y = coordinate
@@ -154,6 +166,7 @@ def corridors_linked(space, coordinate, cwidth, cheight, doors):
             linked = False                  # are there any Cs left?  Then something's unattached.
     flood(space, (m,n), 'Z', 'C')
     return linked
+
 
 @check_return_not_none
 def link_corridors(space, coordinate, cwidth, cheight, doors, attempt=1):      # this fxn attempts to link the corridors in a component
@@ -346,6 +359,7 @@ def link_corridors(space, coordinate, cwidth, cheight, doors, attempt=1):      #
         link_corridors(space, coordinate, cwidth, cheight, doors, attempt+1)
         return space
 
+
 @check_return_not_none
 def place_nscomponent(space, coordinate, flavor, doors, nsprob, ewprob):
     x, y = coordinate
@@ -368,6 +382,7 @@ def place_nscomponent(space, coordinate, flavor, doors, nsprob, ewprob):
             components.append(dict(coordinate=coordinate, cwidth=cwidth, cheight=cheight, flavor=flavor, doors=doors)) # store the comp
     return space
 
+
 @check_return_not_none
 def place_ewcomponent(space, coordinate, flavor, doors, ewprob, nsprob):
     x, y = coordinate
@@ -375,7 +390,7 @@ def place_ewcomponent(space, coordinate, flavor, doors, ewprob, nsprob):
     while len(components) == 0 and crashcount < 100:
         cwidth  = randint(mincompwidth, maxcompwidth - 6)
         cheight = randint(mincompheight + 3, maxcompheight)
-        crashcount = crashcount + 1
+        crashcount += 1
         if random() < bigcompfreq:
             cwidth  *= comp_multiplier
             cheight *= comp_multiplier
@@ -387,6 +402,7 @@ def place_ewcomponent(space, coordinate, flavor, doors, ewprob, nsprob):
 #           space = place_equipment(space, coordinate, cwidth, cheight, flavor)
             components.append(dict(coordinate=coordinate, cwidth=cwidth, cheight=cheight, flavor=flavor, doors=doors)) # store the comp
     return space
+
 
 @check_return_not_none
 def place_nscorridors(space, coordinate, cwidth, cheight, doors, nsprob, ewprob):
@@ -457,6 +473,7 @@ def place_nscorridors(space, coordinate, cwidth, cheight, doors, nsprob, ewprob)
         doors.append(d)
     place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob, ewprob)
     return space
+
 
 @check_return_not_none
 def place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob, ewprob):
@@ -623,11 +640,12 @@ def place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob
 >>> place_character(['  ', '  '], (0, 1), 'x')
 ['  ', 'x ']
 '''
-#import doctest
-#doctest.testmod()
 
-#import pdb
-#pdb.set_trace()
+# import doctest
+# doctest.testmod()
+
+# import pdb
+# pdb.set_trace()
 
 grid = Grid(winwidth, winheight)
 space = place_nscomponent(space, (winwidth/2,winheight/2), {}, [], 1.0, 0.3)
