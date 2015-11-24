@@ -32,9 +32,14 @@ maxcompwidth    = 12
 bigcompfreq     = 0.15    # how often are comps bigger than max & by what factor?
 comp_multiplier = 2
 
-components = []
 outer_space = {}
 windex = (winwidth/-2,winheight/-2)
+stations = []
+"""Each station is a list of components
+each component is a dict including index, dimensions, doors, flavor, and equipment
+index is a tuple, dimensions are two numbers, doors is a list of tuples, flavor is a dict of numbers for each flavor,
+equipment is a list of dicts including coordinate, dimensions, type, and inventory"""
+components = []
 
 
 def check_return_not_none(func):
@@ -54,6 +59,7 @@ def check_return_not_none(func):
 
 
 class Grid(object):
+    """The Grid is basically the screen or UI"""
     def __init__(self, width=winwidth, height=winheight, character=' '):
         self.grid = [[character for x in xrange(width)] for y in xrange(height)]
 
@@ -78,6 +84,7 @@ class Grid(object):
         self.grid[y][x] = character
 
     def update(self, space, character=' '):
+        "This wipes the screen, then fills in anything from that part of outer_space"
         self.grid = [[character for x in xrange(winwidth)] for y in xrange(winheight)] # blank slate
         window = filter(lambda x: windex[0]<=x[0]<winwidth+windex[0] and windex[1]<=x[1]<winheight+windex[1], space.keys())
         for point in window:            # then get all the relevant points from space
@@ -383,17 +390,24 @@ def place_nscomponent(space, cindex, flavor, doors, nsprob, ewprob):
         cwidth = 2 * half_width + 1
         cheight = 2 * half_height + 1
         x = cindex[0] - half_width
-        y = cindex[1]
-        coordinate = (x, y)
-        if is_area(space, coordinate, cwidth, cheight): # blocked?
+        if cindex[2] = 'n':
+            y = cindex[1]
+        elif cindex[2] = 's':
+            y = cindex[1] - 2 * half_height
+        elif cindex[2] = 'c':
+            y = cindex[1] - half_height
+        else:
+            print "How can the orientation of a nscomponent be", cindex[2]
+        coordinate = (x, y)                 # coordinate is the upper left corner; cindex is the origin & orientation
+        if is_area(space, coordinate, cwidth, cheight): # not blocked?
             print 'coordinate:', coordinate, 'extremity:', (x+cwidth-1,y+cheight-1), 'width:', cwidth, 'height:', cheight ####
-            for ln in range(cheight):       # if not, place component
+            for ln in range(cheight):       # then place component
                 for pt in range(cwidth):
                     space[(x+pt,y+ln)] = '#'
             space = place_nscorridors(space, cindex, half_width, half_height, doors, nsprob, ewprob)
             space = link_corridors(space, coordinate, cwidth, cheight, doors)
 #           space = place_equipment(space, cindex, half_width, half_height, flavor)
-            components.append(dict(cindex=cindex, half_width=half_width, half_height=half_height, flavor=flavor, doors=doors)) # store the comp
+            components.append(dict(station=station, cindex=cindex, half_width=half_width, half_height=half_height, flavor=flavor, doors=doors, equipment=[])) # store the comp
     return space
 
 
@@ -409,17 +423,24 @@ def place_ewcomponent(space, cindex, flavor, doors, ewprob, nsprob):
             half_height *= comp_multiplier
         cwidth = 2 * half_width + 1
         cheight = 2 * half_height + 1
-        x = cindex[0]
         y = cindex[1] - half_height
+        if cindex[2] = 'e':
+            x = cindex[0] - 2 * half_width
+        elif cindex[2] = 'w':
+            x = cindex[0]
+        elif cindex[2] = 'c':
+            x = cindex[0] - half_width
+        else:
+            print "How can the orientation of an ewcomponent be", cindex[2]
         coordinate = (x, y)
-        if is_area(space, coordinate, cwidth, cheight): # blocked?
-            for ln in range(cheight):           # if not, place component
+        if is_area(space, coordinate, cwidth, cheight):
+            for ln in range(cheight):           # if not blocked, place component
                 for pt in range(cwidth):
                     space[(x+pt,y+ln)] = '#'
             space = place_ewcorridors(space, cindex, half_width, half_height, doors, ewprob, nsprob)
             space = link_corridors(space, coordinate, cwidth, cheight, doors)
 #           space = place_equipment(space, coordinate, cwidth, cheight, flavor)
-            components.append(dict(cindex=cindex, half_width=half_width, half_height=half_height, flavor=flavor, doors=doors)) # store the comp
+            components.append(dict(station=station, cindex=cindex, half_width=half_width, half_height=half_height, flavor=flavor, doors=doors, equipment=[])) # store the comp
     return space
 
 
@@ -659,7 +680,7 @@ def place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob
 
 
 grid = Grid(winwidth, winheight)      # okay, make a blank screen
-outer_space = place_nscomponent(outer_space, (0,0), {}, [], 1.0, 0.3)  # put components in space
+outer_space = place_nscomponent(outer_space, (0,0,'c'), {}, [], 1.0, 0.3)  # put components in space
 
 grid.update(outer_space)              # put that space on the screen
 grid.border()                         # make it look nice
