@@ -20,7 +20,7 @@ from random import random, randint, seed
 
 super_seed = randint(1,1000)
 print "Today's seed is", super_seed
-seed(255)    # this will let you go back to good randomnesses
+seed(super_seed)    # this will let you go back to good randomnesses
 
 decay           = 0.8     # component branches die off by a power of this
 winwidth        = 30      # window dimensions
@@ -82,8 +82,7 @@ class Grid(object):
         window = filter(lambda x: windex[0]<=x[0]<winwidth+windex[0] and windex[1]<=x[1]<winheight+windex[1], space.keys())
         for point in window:            # then get all the relevant points from space
             m, n = point
-            pdb.set_trace()
-            self.grid[n][m] = space[(m-windex[0],n-windex[1])]
+            self.grid[n-windex[1]][m-windex[0]] = space[(m,n)]
 
     def border(self, border = 'X'):
         for a in range(winwidth):
@@ -138,11 +137,9 @@ def flood(space, coordinate, target, replacement):
         while is_character(space, (e[0]+1,e[1]), target):      # mark off a line
             e = (e[0]+1, e[1])
         for pt in range(e[0]-w[0]+1):
-            space[(w[0]+pt,co[1])] = replacement                         # fill it in
-#            if co[1] > 0:
+            space[(w[0]+pt,co[1])] = replacement                     # fill it in
             if is_character(space, (w[0]+pt,co[1]-1), target):
-                q.append((w[0]+pt, co[1]-1))                         # add any "targets" to the list if they're north of the filled point
-#            if co[1] < len(grid)-1:
+                q.append((w[0]+pt, co[1]-1))                         # add any "targets" to q if they're north of the filled point
             if is_character(space, (w[0]+pt,co[1]+1), target):
                 q.append((w[0]+pt,co[1]+1))                          # ...or south
     return space
@@ -375,7 +372,6 @@ def link_corridors(space, coordinate, cwidth, cheight, doors, attempt=1):      #
 
 @check_return_not_none
 def place_nscomponent(space, cindex, flavor, doors, nsprob, ewprob):
-    a, b = cindex
     crashcount = 0
     while crashcount * (1+len(components)) < 100:    # try this until you get it, but don't die.
         half_width  = randint(mincompwidth + 3, maxcompwidth) / 2
@@ -387,44 +383,53 @@ def place_nscomponent(space, cindex, flavor, doors, nsprob, ewprob):
         cwidth = 2 * half_width + 1
         cheight = 2 * half_height + 1
         x = cindex[0] - half_width
-        y = cindex[1] - half_height
+        y = cindex[1]
         coordinate = (x, y)
         if is_area(space, coordinate, cwidth, cheight): # blocked?
             print 'coordinate:', coordinate, 'extremity:', (x+cwidth-1,y+cheight-1), 'width:', cwidth, 'height:', cheight ####
             for ln in range(cheight):       # if not, place component
                 for pt in range(cwidth):
                     space[(x+pt,y+ln)] = '#'
-            space = place_nscorridors(space, coordinate, cwidth, cheight, doors, nsprob, ewprob)
+            space = place_nscorridors(space, cindex, half_width, half_height, doors, nsprob, ewprob)
             space = link_corridors(space, coordinate, cwidth, cheight, doors)
-#           space = place_equipment(space, coordinate, cwidth, cheight, flavor)
-            components.append(dict(coordinate=coordinate, cwidth=cwidth, cheight=cheight, flavor=flavor, doors=doors)) # store the comp
+#           space = place_equipment(space, cindex, half_width, half_height, flavor)
+            components.append(dict(cindex=cindex, half_width=half_width, half_height=half_height, flavor=flavor, doors=doors)) # store the comp
     return space
 
 
 @check_return_not_none
-def place_ewcomponent(space, coordinate, flavor, doors, ewprob, nsprob):
-    x, y = coordinate
+def place_ewcomponent(space, cindex, flavor, doors, ewprob, nsprob):
     crashcount = 0
     while crashcount * (1+len(components)) < 100:
-        cwidth  = randint(mincompwidth, maxcompwidth - 6)
-        cheight = randint(mincompheight + 3, maxcompheight)
+        half_width  = randint(mincompwidth, maxcompwidth - 6) / 2
+        half_height = randint(mincompheight + 3, maxcompheight) / 2
         crashcount += 1
         if random() < bigcompfreq:
-            cwidth  *= comp_multiplier
-            cheight *= comp_multiplier
+            half_width  *= comp_multiplier
+            half_height *= comp_multiplier
+        cwidth = 2 * half_width + 1
+        cheight = 2 * half_height + 1
+        x = cindex[0]
+        y = cindex[1] - half_height
+        coordinate = (x, y)
         if is_area(space, coordinate, cwidth, cheight): # blocked?
             for ln in range(cheight):           # if not, place component
                 for pt in range(cwidth):
                     space[(x+pt,y+ln)] = '#'
-            space = place_ewcorridors(space, coordinate, cwidth, cheight, doors, ewprob, nsprob)
+            space = place_ewcorridors(space, cindex, half_width, half_height, doors, ewprob, nsprob)
+            space = link_corridors(space, coordinate, cwidth, cheight, doors)
 #           space = place_equipment(space, coordinate, cwidth, cheight, flavor)
-            components.append(dict(coordinate=coordinate, cwidth=cwidth, cheight=cheight, flavor=flavor, doors=doors)) # store the comp
+            components.append(dict(cindex=cindex, half_width=half_width, half_height=half_height, flavor=flavor, doors=doors)) # store the comp
     return space
 
 
 @check_return_not_none
-def place_nscorridors(space, coordinate, cwidth, cheight, doors, nsprob, ewprob):
-    x, y = coordinate                               # top left coordinate of the component
+def place_nscorridors(space, cindex, half_width, half_height, doors, nsprob, ewprob):
+    x = cindex[0] - half_width
+    y = cindex[1]
+    coordinate = (x, y)                               # top left coordinate of the component
+    cwidth = 2 * half_width + 1
+    cheight = 2 * half_height + 1
     ndoors = filter(lambda coord: coord[0]==y-1,doors)          # north doors (each is an (x,y) just outside the comp)
     sdoors = filter(lambda coord: coord[0]==y+cheight,doors)      # south doors
     maincorridors = max(1,randint(cwidth/5, int(cwidth/3.5)), len(ndoors) + len(sdoors))     # how many n/s corridors left?
@@ -598,11 +603,9 @@ def place_ewbranches(space, coordinate, cwidth, cheight, doors, deadends, nsprob
                 space[end] = 'C'
                 deadends.remove(end)
             else:
-                print 'deadend connection options:', go ####
                 while len(go) > 0 and end in deadends:
                     g = go[randint(0,len(go)-1)]
                     go.remove(g)
-                    print g ####
                     if g == 'n':
                         k = n
                         while k >= y:
@@ -663,4 +666,4 @@ grid.border()                         # make it look nice
 print grid
 
 # Do:  Make doors spawn components, write place_ewcorridors, place_nwbranches, place_equipment
-# ns doorspawn - if it spawns from north doors, cheight is normal, if south it's inverted.  Fix grids & finish making cindex.
+# ns doorspawn - if it spawns from north doors, cheight is normal, if south it's inverted.  After appending nscorr newdoors, if any n/sdoors (refilter), spawn comps
