@@ -390,11 +390,11 @@ def place_nscomponent(space, cindex, flavor, doors, nsprob, ewprob):
         cwidth = 2 * half_width + 1
         cheight = 2 * half_height + 1
         x = cindex[0] - half_width
-        if cindex[2] = 'n':
+        if cindex[2] == 'n':
             y = cindex[1]
-        elif cindex[2] = 's':
+        elif cindex[2] == 's':
             y = cindex[1] - 2 * half_height
-        elif cindex[2] = 'c':
+        elif cindex[2] == 'c':
             y = cindex[1] - half_height
         else:
             print "How can the orientation of a nscomponent be", cindex[2]
@@ -424,11 +424,11 @@ def place_ewcomponent(space, cindex, flavor, doors, ewprob, nsprob):
         cwidth = 2 * half_width + 1
         cheight = 2 * half_height + 1
         y = cindex[1] - half_height
-        if cindex[2] = 'e':
+        if cindex[2] == 'e':
             x = cindex[0] - 2 * half_width
-        elif cindex[2] = 'w':
+        elif cindex[2] == 'w':
             x = cindex[0]
-        elif cindex[2] = 'c':
+        elif cindex[2] == 'c':
             x = cindex[0] - half_width
         else:
             print "How can the orientation of an ewcomponent be", cindex[2]
