@@ -4,9 +4,10 @@ which define equipment areas and spawn airlocks, which spawn more components.
 Then you fill in the equipment, according to that component's flava.
 """
 
-# time.time() @ decorates a function with another function, so the first one runs inside the second
-
 # import doctest
+# time.time()
+
+# @ decorates a function with another function, so the first one runs inside the second
 # doctest.testmod() returns None if all fake Python sessions in comments in this module do what they say (like so)
 '''
 >>> place_character(['  ', '  '], (0, 1), 'x')
@@ -684,15 +685,16 @@ class NSComponent(object):
 #       space = place_equipment(space, cindex, half_width, half_height, flavor)
 #    return space
 
-
+"""
 def generate_station(space, stindex, flavor):
     stations.append([])
     place_nscomponent(space, stindex, flavor, [], 1.0, 0.3)
     return space
 
 
+
 @check_return_not_none
-def place_nscomponent(space, cindex, flavor, doors, nsprob, ewprob):
+def place_nscomponent(space, cindex, flavor, doors, nsprob, ewprob):  # this is no longer used
     crashcount = 0
     while crashcount * (1+len(stations[-1])) < 100:    # try this until you get it, but don't die.
         half_width  = randint(mincompwidth + 3, maxcompwidth) / 2
@@ -730,7 +732,7 @@ def place_nscomponent(space, cindex, flavor, doors, nsprob, ewprob):
 #           space = place_equipment(space, cindex, half_width, half_height, flavor)
             break
     return space
-
+"""
 
 @check_return_not_none
 def place_ewcomponent(space, cindex, flavor, doors, ewprob, nsprob):
@@ -770,7 +772,7 @@ def place_ewcomponent(space, cindex, flavor, doors, ewprob, nsprob):
             break
     return space
 
-
+"""
 @check_return_not_none
 def place_nscorridors(space, cindex, half_width, half_height, flavor, nsprob, ewprob):
     x = cindex[0] - half_width
@@ -1010,16 +1012,18 @@ def place_ewbranches(space, cindex, half_width, half_height, flavor, doors, dead
         print 'deadends abandoned:', end ####
         space[end] = 'C'
     return space
-
+"""
 
 grid = Grid(winwidth, winheight)      # okay, make a blank screen
-#outer_space = generate_station(outer_space, (0,0,'n'), {})  # put station in space
+#outer_space = generate_station(outer_space, (0,0,'n'), {})  # this is the old way to put a station in space
 
-stations.append(Station(outer_space, (0,0,'n'), {}))
+stations.append(Station(outer_space, (0,0,'n'), {}))  # this is the new way to put a station in space
 
 grid.update(outer_space)              # put that space on the screen
 grid.border()                         # make it look nice
 print grid
 
 # Do:  Write spawn_ewcorridors, spawn_nwbranches, spawn_equipment
-# Update and introduce spawn_ewcomponent, or look for "game library python" with active development - not "pygame"
+# Update and introduce spawn_ewcomponent
+# Fix components spawning with no corridors or doors because the door that spawned them is outside their meagre width (abort empty comps?)
+# Use pygame to make a real UI!
