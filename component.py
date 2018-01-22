@@ -23,7 +23,7 @@ seed(super_seed)    # this will let you go back to good randomnesses
 
 branchpersistence = 0.8     # corridor branches persist (or die) by a power of this
 compfreq         = 0.8     # probability that a door will actually spawn a component, rather than become exterior
-winwidth        = 40      # window dimensions
+winwidth        = 70      # window dimensions
 winheight       = 70
 mincompheight   = 4       # component dimensions
 mincompwidth    = 4
@@ -33,10 +33,11 @@ bigcompfreq     = 0.15    # how often are comps bigger than max & by what factor
 comp_multiplier = 2
 
 outer_space = {}
-windex = (winwidth/-2,-3)
+cardinals = ['n', 's', 'w', 'e']
+windex = (winwidth/-2,winheight/-2)
 stations = []
-""" Each station is a list of components
-each component is a dict including index, dimensions, doors, flavor, and equipment
+""" Each station is an object with a list of components
+each component is an object with an index, dimensions, doors, flavor, and equipment
 index is a tuple, dimensions are two numbers, doors is a list of tuples,
 flavor is a dict of numbers for each flavor, i.e. {'med': 5, 'sci': 2}
 equipment is a list of dicts including coordinate, dimensions, type, and inventory
@@ -375,11 +376,11 @@ def link_corridors(space, coords, cwidth, cheight, doors, attempt=1):      # thi
 
 class Station(object):
 
-    def spawn_nscomponent(self, cindex, flavor, doors, nsprob, ewprob):
+    def spawn_component(self, cindex, flavor, doors, nsprob, ewprob):
         crashcount = 0
         while crashcount * (1+self.component_count) < 100:    # try this until you get it, but don't die.
-            half_width  = randint(mincompwidth + 3, maxcompwidth) / 2
-            half_height = randint(mincompheight, maxcompheight - 6) / 2
+            half_width  = randint(mincompwidth, maxcompwidth) / 2
+            half_height = randint(mincompheight, maxcompheight) / 2
             crashcount += 1
             print "Component placement attempt", crashcount                                                         ####
             if random() < bigcompfreq:          # maybe this is a super big component?
@@ -405,7 +406,12 @@ class Station(object):
                 if random() < compfreq or self.component_count == 0:
                     self.component_count += 1
                     doors = realdoors
-                    self.components.append(NSComponent(self.space, self, cindex, half_width, half_height, self.flavor, doors, nsprob, ewprob))
+                    for door in doors:
+                        self.space[door] = 'a'
+                    if cindex[2] == 'n' or cindex[2] == 's':
+                        self.components.append(NSComponent(self.space, self, cindex, half_width, half_height, self.flavor, doors, nsprob, ewprob))
+                    else:
+                        self.components.append(WEComponent(self.space, self, cindex, half_width, half_height, self.flavor, doors, nsprob, ewprob))
                 break
 #            return space
 
@@ -415,7 +421,7 @@ class Station(object):
         self.flavor = flavor
         self.components = []
         self.component_count = 0
-        self.spawn_nscomponent(self.stindex, self.flavor, [], 1.0, 0.3)
+        self.spawn_component(self.stindex, self.flavor, [], random()*0.4+0.4, random()*0.4+0.4)
 
 
 class Component(object):
@@ -427,6 +433,78 @@ class Component(object):
             for pt in range(self.width):
                 self.space[(x+pt,y+ln)] = '#'
 
+    def connect_deadends(self, deadends):           # corridors that end in a dead-end go to branches, and if branches don't link them we try here
+        x, y = self.coordinates
+        cwidth = 2 * self.half_width + 1
+        cheight = 2 * self.half_height + 1
+        ndoors = filter(lambda coord: coord[1]==y-1,self.doors)              # north doors
+        sdoors = filter(lambda coord: coord[1]==y+cheight,self.doors)        # south doors
+        wdoors = filter(lambda coord: coord[0]==x-1,self.doors)              # west doors
+        edoors = filter(lambda coord: coord[0]==x+cwidth,self.doors)         # east doors
+        for end in deadends[:]:
+            m,n = end
+            if not is_character(self.space, end, 'c'):
+                deadends.remove(end)
+            else:
+                go = ['n', 's', 'e', 'w']               # which directions will we look?
+                if is_character(self.space, (m,n-1), 'C') or is_character(self.space, (m,n-1), 'c') or end in ndoors:
+                    go.remove('n')
+                if is_character(self.space, (m,n+1), 'C') or is_character(self.space, (m,n+1), 'c') or end in sdoors:
+                    go.remove('s')
+                if is_character(self.space, (m+1,n), 'C') or is_character(self.space, (m+1,n), 'c') or end in edoors:
+                    go.remove('e')
+                if is_character(self.space, (m-1,n), 'C') or is_character(self.space, (m-1,n), 'c') or end in wdoors:
+                    go.remove('w')
+                if len(go) < 3:
+                    self.space[end] = 'C'
+                    deadends.remove(end)
+                else:
+                    while len(go) > 0 and end in deadends:
+                        g = go[randint(0,len(go)-1)]
+                        go.remove(g)
+                        if g == 'n':
+                            k = n
+                            while k >= y:
+                                k -= 1
+                                if is_character(self.space, (m,k), 'C') or is_character(self.space, (m,k), 'c'):
+                                    deadends.remove(end)
+                                    while k <= n:
+                                        self.space[(m,k)] = 'C'
+                                        k += 1
+                                    break
+                        elif g == 's':
+                            k = n
+                            while k <= y+cheight-1:
+                                k += 1
+                                if is_character(self.space, (m,k), 'C') or is_character(self.space, (m,k), 'c'):
+                                    deadends.remove(end)
+                                    while k >= n:
+                                        self.space[(m,k)] = 'C'
+                                        k -= 1
+                                    break
+                        elif g == 'e':
+                            h = m
+                            while h <= x+cwidth-1:
+                                h += 1
+                                if is_character(self.space, (h,n), 'C') or is_character(self.space, (h,n), 'c'):
+                                    deadends.remove(end)
+                                    while h >= m:
+                                        self.space[(h,n)] = 'C'
+                                        h -= 1
+                                    break
+                        else:
+                            h = m
+                            while h >= x:
+                                h -= 1
+                                if is_character(self.space, (h,n), 'C') or is_character(self.space, (h,n), 'c'):
+                                    deadends.remove(end)
+                                    while h <= m:
+                                        self.space[(h,n)] = 'C'
+                                        h += 1
+                                    break
+                        if len(deadends) == 0:
+                            break
+
     def __init__(self, space, station, cindex, half_width, half_height, flavor, doors, nsprob, ewprob):
         self.space = space
         self.cindex = cindex
@@ -434,7 +512,7 @@ class Component(object):
         self.doors = doors
         self.nsprob = nsprob
         self.ewprob = ewprob
-        self.station = len(stations)
+        self.station = station
         self.equipment = []
         self.half_width = half_width
         self.half_height = half_height
@@ -447,7 +525,7 @@ class Component(object):
 
 class NSComponent(Component):
 
-    def spawn_ewbranches(self, deadends):
+    def spawn_webranches(self, deadends):
         x, y = self.coordinates
         cwidth = 2 * self.half_width + 1
         cheight = 2 * self.half_height + 1
@@ -533,87 +611,32 @@ class NSComponent(Component):
                         branches -= 1
             if crashcount == 100: print 'couldn\'t place any more e/w branches'  ####
         print 'deadends', deadends ####
-        for end in deadends[:]:                            # now let's connect some dead-ends
-            m,n = end
-            if not is_character(self.space, end, 'c'):
-                deadends.remove(end)
-            else:
-                go = ['n', 's', 'e', 'w']               # which directions will we look?
-                if is_character(self.space, (m,n-1), 'C') or is_character(self.space, (m,n-1), 'c') or end in ndoors:
-                    go.remove('n')
-                if is_character(self.space, (m,n+1), 'C') or is_character(self.space, (m,n+1), 'c') or end in sdoors:
-                    go.remove('s')
-                if is_character(self.space, (m+1,n), 'C') or is_character(self.space, (m+1,n), 'c') or end in edoors:
-                    go.remove('e')
-                if is_character(self.space, (m-1,n), 'C') or is_character(self.space, (m-1,n), 'c') or end in wdoors:
-                    go.remove('w')
-                if len(go) < 3:
-                    self.space[end] = 'C'
-                    deadends.remove(end)
-                else:
-                    while len(go) > 0 and end in deadends:
-                        g = go[randint(0,len(go)-1)]
-                        go.remove(g)
-                        if g == 'n':
-                            k = n
-                            while k >= y:
-                                k -= 1
-                                if is_character(self.space, (m,k), 'C') or is_character(self.space, (m,k), 'c'):
-                                    deadends.remove(end)
-                                    while k <= n:
-                                        self.space[(m,k)] = 'C'
-                                        k += 1
-                                    break
-                        elif g == 's':
-                            k = n
-                            while k <= y+cheight-1:
-                                k += 1
-                                if is_character(self.space, (m,k), 'C') or is_character(self.space, (m,k), 'c'):
-                                    deadends.remove(end)
-                                    while k >= n:
-                                        self.space[(m,k)] = 'C'
-                                        k -= 1
-                                    break
-                        elif g == 'e':
-                            h = m
-                            while h <= x+cwidth-1:
-                                h += 1
-                                if is_character(self.space, (h,n), 'C') or is_character(self.space, (h,n), 'c'):
-                                    deadends.remove(end)
-                                    while h >= m:
-                                        self.space[(h,n)] = 'C'
-                                        h -= 1
-                                    break
-                        else:
-                            h = m
-                            while h >= x:
-                                h -= 1
-                                if is_character(self.space, (h,n), 'C') or is_character(self.space, (h,n), 'c'):
-                                    deadends.remove(end)
-                                    while h <= m:
-                                        self.space[(h,n)] = 'C'
-                                        h += 1
-                                    break
-                        if len(deadends) == 0:
-                            break
-#        for d in newdoors:
-#            doors.append(d)
+        self.connect_deadends(deadends)                 # now let's connect some dead-ends
+        for d in newdoors:
+            self.doors.append(d)
         if newdoors:
             self.doors += newdoors
-#            place_ewcomponent(space, (self.coordinates[0]+cwidth+1, cindex[1]+half_height, 'e' or 'w' but filter newdoors to decide?), flavor, doors, nsprob*branchpersistence, ewprob)
+            direc = ['w', 'e']
+            if not filter(lambda coord: coord[0]==x-1,self.doors):          # any west doors?
+                direc.remove('w')
+            if not filter(lambda coord: coord[0]==x+cwidth,self.doors):     # or east doors?
+                direc.remove('e')
+            while direc:
+                tion = direc.pop(randint(0,len(direc)-1))                    # pick a direction and spawn some components!
+                spawnx = self.coordinates[0]-2 if tion == 'e' else self.coordinates[0]+cwidth+1
+                self.station.spawn_component((spawnx, self.coordinates[1]+self.half_height, tion), self.flavor, self.doors, self.nsprob, branchpersistence * self.ewprob)
         print 'doors:', self.doors ####
         for end in deadends:
             print 'deadends abandoned:', end ####
             self.space[end] = 'C'
 #        return space
 
-    def spawn_nscorridors(self, space, station, cindex, half_width, half_height, flavor, nsprob, ewprob):
+    def spawn_nscorridors(self, space, cindex, half_width, half_height, flavor, nsprob, ewprob):
         x, y = self.coordinates                           # top left coordinates of the component
         cwidth = 2 * half_width + 1
         cheight = 2 * half_height + 1
-        doors = self.doors
-        ndoors = filter(lambda coord: coord[1]==y-1,doors)          # north doors (each is an (x,y) just outside the comp)
-        sdoors = filter(lambda coord: coord[1]==y+cheight,doors)      # south doors
+        ndoors = filter(lambda coord: coord[1]==y-1,self.doors)          # north doors (each is an (x,y) just outside the comp)
+        sdoors = filter(lambda coord: coord[1]==y+cheight,self.doors)      # south doors
         maincorridors = max(1,randint(cwidth/10, int(cwidth/3.5)), len(ndoors) + len(sdoors))     # how many n/s corridors left?
         deadends = []
         newdoors = []
@@ -641,7 +664,7 @@ class NSComponent(Component):
                     deadends.append((m,n-cl))
                 else:
                     newdoors.append((m,n-cl-1))
-        if random() < nsprob:
+        if random() < nsprob or self.station.component_count == 1:
             while maincorridors > 0:        # place any other main corridors at random
                 spot = randint(0,cwidth-1)
                 if cindex[2] == 's':       # do they start at the north, to mirror the door-spawned southern corridors?
@@ -676,32 +699,136 @@ class NSComponent(Component):
                     print "How did an nscorridor's cindex[2] become", cindex[2]                                     ####
         if newdoors:
             self.doors += newdoors
-            station.spawn_nscomponent((cindex[0], cindex[1]+cheight+1 if cindex[2] == 'n' else cindex[1]-cheight-1, cindex[2]), self.flavor, self.doors, nsprob * branchpersistence, ewprob)
-        self.spawn_ewbranches(deadends)
+            self.station.spawn_component((cindex[0], cindex[1] + cheight + 1 if cindex[2] == 'n' else cindex[1] - cheight - 1, cindex[2]), \
+                                         self.flavor, self.doors, nsprob * branchpersistence, ewprob)
+        self.spawn_webranches(deadends)
 #        return space
 
     def __init__(self, space, station, cindex, half_width, half_height, flavor, doors, nsprob, ewprob):
         Component.__init__(self, space, station, cindex, half_width, half_height, flavor, doors, nsprob, ewprob)
-        self.spawn_nscorridors(space, station, cindex, half_width, half_height, flavor, nsprob, ewprob)
+        self.spawn_nscorridors(space, cindex, half_width, half_height, flavor, nsprob, ewprob)
         link_corridors(space, self.coordinates, self.width, self.height, self.doors)
 #       space = place_equipment(space, cindex, half_width, half_height, flavor)
 #    return space
 
-class EWComponent(Component):
+class WEComponent(Component):
 
-#    def spawn_nsbranches(self, deadends):
+    def spawn_nsbranches(self, deadends):
+        x, y = self.coordinates
+        cwidth = 2 * self.half_width + 1
+        cheight = 2 * self.half_height + 1
+        ndoors = filter(lambda coord: coord[1]==y-1,self.doors)              # north doors
+        sdoors = filter(lambda coord: coord[1]==y+cheight,self.doors)        # south doors
+        wdoors = filter(lambda coord: coord[0]==x-1,self.doors)              # west doors
+        edoors = filter(lambda coord: coord[0]==x+cwidth,self.doors)         # east doors
+        branches = max(1,randint(cwidth/5, int(cwidth/3.5)), len(ndoors) + len(sdoors))     # how many n/s corridors left?
+        nokay = sokay = False
+        if len(ndoors) > 0:
+            nokay = True
+        if len(sdoors) > 0:
+            sokay = True
+        if random() < self.nsprob:
+            tricoin = random()
+            if tricoin > 0.3:
+                nokay = True
+            if tricoin < 0.7:
+                sokay = True
+        for sd in sdoors:
+            m, n = sd
+            n -= 1
+            cl = randint(cheight/3, cheight*2/3)
+            while n >= y+cheight-cl and not is_character(self.space, (m,n), 'C'):
+                if n == y+cheight-cl and is_character(self.space, (m+1,n), '#') \
+                   and is_character(self.space, (m-1,n), '#') and is_character(self.space, (m,n-1), '#'):
+                    self.space[(m,n)] = 'c'
+                    deadends.append((m,n))
+                else:
+                    self.space[(m,n)] = 'C'
+                n -= 1
+            branches -= 1
+        for nd in ndoors:
+            m, n = nd
+            n += 1
+            cl = randint(cheight/3, cheight*2/3)
+            while n <= y+cl-1 and not is_character(self.space, (m,n), 'C'):
+                if n == y+cl-1 and is_character(self.space, (m+1,n), '#') \
+                   and is_character(space, (m-1,n), '#') and is_character(self.space, (m,n+1), '#'):
+                    self.space[(m,n)] = 'c'
+                    deadends.append((m,n))
+                else:
+                    self.space[(m,n)] = 'C'
+                n += 1
+            branches -= 1
+        newdoors = []
+        if nokay == True or sokay == True:
+            crashcount = 0
+            while branches > 0 and crashcount < 100:        # place any other branches at random
+                crashcount += 1
+                spot = randint(0,cwidth-1)
+                if sokay and randint(0,1) == 1:       # do those start at the south?
+                    if is_character(self.space, (x+spot,y+cheight-1), '#') and not is_character(self.space, (x+spot+1,y), 'C') \
+                       and not is_character(self.space, (x+spot-1,y), 'C') and not is_character(self.space, (x+spot-1,y+cheight-1), 'C') \
+                       and not is_character(self.space, (x+spot+1,y+cheight-1), 'C'):
+                        cl = randint(cheight/3, cheight*2/3)
+                        m = x+spot
+                        n = y+cheight-1
+                        newdoors.append((m,n+1))
+                        while n >= y+cheight-cl and not is_character(self.space, (m,n), 'C'):
+                            if n == y+cheight-cl and not (is_character(self.space, (m+1,n), 'C') or is_character(self.space, (m-1,n), 'C')):
+                                self.space[(m,n)] = 'c'
+                                deadends.append((m,n))
+                            else:
+                                self.space[(m,n)] = 'C'
+                            n -= 1
+                        branches -= 1
+                elif nokay:                       # or north?
+                    if is_character(self.space, (x+spot,y), '#') and not is_character(self.space, (x+spot+1,y), 'C') \
+                       and not is_character(self.space, (x+spot-1,y), 'C') and not is_character(self.space, (x+spot-1,y+cheight-1), 'C') \
+                       and not is_character(self.space, (x+spot+1,y+cheight-1), 'C'):
+                        cl = randint(cheight/3, cheight*2/3)
+                        n = y
+                        m = x+spot
+                        newdoors.append((m,n-1))
+                        while n <= y+cl-1 and not is_character(self.space, (m,n), 'C'):
+                            if n == y+cl-1 and not (is_character(self.space, (m+1,n), 'C') or is_character(self.space, (m-1,n), 'C')):
+                                self.space[(m,n)] = 'c'
+                                deadends.append((m,n))
+                            else:
+                                self.space[(m,n)] = 'C'
+                            n += 1
+                        branches -= 1
+            if crashcount == 100: print 'couldn\'t place any more e/w branches'  ####
+        print 'deadends', deadends ####
+        self.connect_deadends(deadends)                 # now let's connect some dead-ends
+        for d in newdoors:
+            self.doors.append(d)
+        if newdoors:
+            self.doors += newdoors
+            direc = ['n', 's']
+            if not filter(lambda coord: coord[1]==y-1,self.doors):          # any north doors?
+                direc.remove('n')
+            if not filter(lambda coord: coord[1]==y+cheight,self.doors):    # or south doors?
+                direc.remove('s')
+            while direc:
+                tion = direc.pop(randint(0,len(direc)-1))                    # pick a direction and spawn some components!
+                spawny = self.coordinates[1]-2 if tion == 's' else self.coordinates[1]+cheight+1
+                self.station.spawn_component((self.coordinates[0]+self.half_width, spawny, tion), self.flavor, self.doors, self.nsprob * branchpersistence, self.ewprob)
+        print 'doors:', self.doors ####
+        for end in deadends:
+            print 'deadends abandoned:', end ####
+            self.space[end] = 'C'
+#        return space
 
-    def spawn_ewcorridors(self, space, station, cindex, half_width, half_height, flavor, nsprob, ewprob):
+    def spawn_wecorridors(self, space, cindex, half_width, half_height, flavor, nsprob, ewprob):
         x, y = self.coordinates                               # top left coordinates of the component
         cwidth = 2 * half_width + 1
         cheight = 2 * half_height + 1
-        doors = self.doors
-        wdoors = filter(lambda coord: coord[0]==x-1,doors)          # west doors (each is an (x,y) just outside the comp)
-        edoors = filter(lambda coord: coord[0]==x+cwidth,doors)      # east doors
+        wdoors = filter(lambda coord: coord[0]==x-1,self.doors)          # west doors (each is an (x,y) just outside the comp)
+        edoors = filter(lambda coord: coord[0]==x+cwidth,self.doors)      # east doors
         maincorridors = max(1,randint(cheight/10, int(cheight/3.5)), len(wdoors) + len(edoors))     # how many w/e corridors left?
         deadends = []
         newdoors = []
-        for wd in ndoors:               # place corridors spawned by west doors
+        for wd in wdoors:               # place corridors spawned by west doors
             m, n = wd
             if is_character(space, (m+1,n), '#'):
                 cl = min(randint(cwidth/5, cwidth*9/5), cwidth)
@@ -725,7 +852,7 @@ class EWComponent(Component):
                     deadends.append((m-cl,n))
                 else:
                     newdoors.append((m-cl-1,n))
-        if random() < ewprob:
+        if random() < ewprob or self.station.component_count == 1:
             while maincorridors > 0:        # place any other main corridors at random
                 spot = randint(0,cheight-1)
                 if cindex[2] == 'e':       # do they start at the west, to mirror the door-spawned eastern corridors?
@@ -760,317 +887,27 @@ class EWComponent(Component):
                     print "How did an ewcorridor's cindex[2] become", cindex[2]                                     ####
         if newdoors:
             self.doors += newdoors
-            station.spawn_ewcomponent((cindex[0]+cwidth+1 if cindex[2] == 'w' else cindex[0]-cwidth-1, cindex[1], cindex[2]), \
+            self.station.spawn_component((cindex[0]+cwidth+1 if cindex[2] == 'w' else cindex[0]-cwidth-1, cindex[1], cindex[2]), \
                                       self.flavor, self.doors, nsprob, ewprob * branchpersistence)
-        self.spawn_ewbranches(deadends)
+        self.spawn_nsbranches(deadends)
 #        return space
 
 
     def __init__(self, space, station, cindex, half_width, half_height, flavor, doors, nsprob, ewprob):
         Component.__init__(self, space, station, cindex, half_width, half_height, flavor, doors, nsprob, ewprob)
         self.place()
-        self.spawnewcorridors(space, station, cindex, half_width, half_height, flavor, nsprob, ewprob)
+        self.spawn_wecorridors(space, cindex, half_width, half_height, flavor, nsprob, ewprob)
         link_corridors(space, self.coordinates, self.width, self.height, self.doors)
 #        space = place_equipment(space, cindex, half_width, half_height, flavor)
 #    return space
 
 
-"""
-def generate_station(space, stindex, flavor):
-    stations.append([])
-    place_nscomponent(space, stindex, flavor, [], 1.0, 0.3)
-    return space
-"""
-
-@check_return_not_none
-def place_ewcomponent(space, cindex, flavor, doors, ewprob, nsprob):
-    crashcount = 0
-    while crashcount * (1+len(stations[-1])) < 100:
-        half_width  = randint(mincompwidth, maxcompwidth - 6) / 2
-        half_height = randint(mincompheight + 3, maxcompheight) / 2
-        crashcount += 1
-        if random() < bigcompfreq:
-            half_width  *= comp_multiplier
-            half_height *= comp_multiplier
-        cwidth = 2 * half_width + 1
-        cheight = 2 * half_height + 1
-        y = cindex[1] - half_height
-        if cindex[2] == 'e':
-            x = cindex[0] - 2 * half_width
-        elif cindex[2] == 'w':
-            x = cindex[0]
-        else:
-            print "How can the orientation of an ewcomponent be", cindex[2]                                         ####
-        coords = (x, y)
-        doors = filter(lambda d: (d[0] == coords[0] - 1 or d[0] == coords[0] + cwidth) and \
-                                 (coords[1] <= d[1] <= coords[1] + cheight - 1) or \
-                                 (d[1] == coords[1] - 1 or d[1] == coords[1] + cheight) and \
-                                 (coords[0] <= d[0] <= coords[0] + cwidth - 1), doors)
-        if len(stations[-1]) > 0 and not doors:
-            break
-        if is_area(space, coords, cwidth, cheight):
-            stations[-1].append(dict(cindex=cindex, half_width=half_width, half_height=half_height, flavor=flavor, doors=doors, equipment=[])) # store the comp
-            print 'coordinates:', coords, 'extremity:', (x + cwidth - 1, y + cheight - 1), 'width:', cwidth, 'height:', cheight ####
-            for ln in range(cheight):           # if not blocked, place component
-                for pt in range(cwidth):
-                    space[(x+pt,y+ln)] = '#'
-            space = place_ewcorridors(space, cindex, half_width, half_height, flavor, ewprob, nsprob)
-            space = link_corridors(space, coords, cwidth, cheight, doors)
-#           space = place_equipment(space, coords, cwidth, cheight, flavor)
-            break
-    return space
-
-"""
-@check_return_not_none
-def place_nscorridors(space, cindex, half_width, half_height, flavor, nsprob, ewprob):
-    x = cindex[0] - half_width
-    y = cindex[1]
-    coordinate = (x, y)                               # top left coordinate of the component
-    cwidth = 2 * half_width + 1
-    cheight = 2 * half_height + 1
-    doors = stations[-1][-1]['doors']
-    ndoors = filter(lambda coord: coord[1]==y-1,doors)          # north doors (each is an (x,y) just outside the comp)
-    sdoors = filter(lambda coord: coord[1]==y+cheight,doors)      # south doors
-    maincorridors = max(1,randint(cwidth/10, int(cwidth/3.5)), len(ndoors) + len(sdoors))     # how many n/s corridors left?
-    deadends = []
-    newdoors = []
-    for nd in ndoors:               # place corridors spawned by north doors
-        m, n = nd
-        if is_character(space, (m,n+1), '#'):
-            cl = min(randint(cheight/5, cheight*9/5), cheight)
-            for c in range(cl):
-                space[(m,n+c+1)] = 'C'
-            maincorridors -= 1
-            if cl != cheight:
-                space[(m,n+cl)] = 'c'            # dead-ends get lowercase c
-                deadends.append((m,n+cl))
-            else:
-                newdoors.append((m,n+cl+1))
-    for sd in sdoors:               # place corridors spawned by south doors
-        m, n = sd
-        if is_character(space, (m,n-1), '#'):
-            cl = min(randint(cheight/5, cheight*9/5), cheight)
-            for c in range(cl):
-                space[(m,n-c-1)] = 'C'
-            maincorridors -= 1
-            if cl != cheight:
-                space[(m,n-cl)] = 'c'
-                deadends.append((m,n-cl))
-            else:
-                newdoors.append((m,n-cl-1))
-    if random() < nsprob:
-        while maincorridors > 0:        # place any other main corridors at random
-            spot = randint(0,cwidth-1)
-            if cindex[2] == 's':       # do they start at the north?
-                if is_character(space, (x+spot,y), '#') and not is_character(space, (x+spot+1,y), 'C') \
-                   and not is_character(space, (x+spot-1,y), 'C') and not is_character(space, (x+spot-1,y+cheight-1), 'C') \
-                   and not is_character(space, (x+spot+1,y+cheight-1), 'C'):
-                    cl = min(randint(cheight/5, cheight*9/5), cheight)
-                    for c in range(cl):
-                        space[(x+spot,y+c)] = 'C'
-                    maincorridors -= 1
-                    newdoors.append((x+spot,y-1))
-                    if cl != cheight:
-                        space[(x+spot,y+cl-1)] = 'c'
-                        deadends.append((x+spot,y+cl-1))
-                    else:
-                        newdoors.append((x+spot,y+cl))
-            elif cindex[2] == 'n':                       # or south?
-                if is_character(space, (x+spot,y+cheight-1), '#') and not is_character(space, (x+spot+1,y), 'C') \
-                   and not is_character(space, (x+spot-1,y), 'C') and not is_character(space, (x+spot-1,y+cheight-1), 'C') \
-                   and not is_character(space, (x+spot+1,y+cheight-1), 'C'):
-                    cl = min(randint(cheight/5, cheight*9/5), cheight)
-                    for c in range(cl):
-                        space[(x+spot,y+cheight-c-1)] = 'C'
-                    maincorridors -= 1
-                    newdoors.append((x+spot,y+cheight))
-                    if cl != cheight:
-                        space[(x+spot,y+cheight-cl)] = 'c'
-                        deadends.append((x+spot,y+cheight-cl))
-                    else:
-                        newdoors.append((x+spot,y+cheight-cl-1))
-            else:
-                print "How did an nscorridor's cindex[2] become", cindex[2]
-    if newdoors:
-        stations[-1][-1]['doors'] += newdoors
-        place_nscomponent(space, (cindex[0], cindex[1]+cheight+1, cindex[2]), flavor, doors, nsprob*branchpersistence, ewprob)
-    place_ewbranches(space, cindex, half_width, half_height, flavor, doors, deadends, nsprob, ewprob)
-    return space
-
-
-@check_return_not_none
-def place_ewbranches(space, cindex, half_width, half_height, flavor, doors, deadends, nsprob, ewprob):
-    x = cindex[0] - half_width
-    y = cindex[1]
-    coordinate = (x, y)
-    cwidth = 2 * half_width + 1
-    cheight = 2 * half_height + 1
-    ndoors = filter(lambda coord: coord[1]==y-1,doors)              # north doors
-    sdoors = filter(lambda coord: coord[1]==y+cheight,doors)        # south doors
-    wdoors = filter(lambda coord: coord[0]==x-1,doors)              # west doors
-    edoors = filter(lambda coord: coord[0]==x+cwidth,doors)         # east doors
-    branches = max(1,randint(cheight/5, int(cheight/3.5)), len(edoors) + len(wdoors))     # how many e/w corridors left?
-    eokay = wokay = False
-    if len(edoors) > 0:
-        eokay = True
-    if len(wdoors) > 0:
-        wokay = True
-    if random() < ewprob:
-        tricoin = random()
-        if tricoin > 0.3:
-            eokay = True
-        if tricoin < 0.7:
-            wokay = True
-    for ed in edoors:
-        m, n = ed
-        m -= 1
-        cl = randint(cwidth/3, cwidth*2/3)
-        while m >= x+cwidth-cl and not is_character(space, (m,n), 'C'):
-            if m == x+cwidth-cl and is_character(space, (m,n+1), '#') \
-               and is_character(space, (m,n-1), '#') and is_character(space, (m-1,n), '#'):
-                space[(m,n)] = 'c'
-                deadends.append((m,n))
-            else:
-                space[(m,n)] = 'C'
-            m -= 1
-        branches -= 1
-    for wd in wdoors:
-        m, n = wd
-        m += 1
-        cl = randint(cwidth/3, cwidth*2/3)
-        while m <= x+cl-1 and not is_character(space, (m,n), 'C'):
-            if m == x+cl-1 and is_character(space, (m,n+1), '#') \
-               and is_character(space, (m,n-1), '#') and is_character(space, (m+1,n), '#'):
-                space[(m,n)] = 'c'
-                deadends.append((m,n))
-            else:
-                space[(m,n)] = 'C'
-            m += 1
-        branches -= 1
-    newdoors = []
-    if wokay == True or eokay == True:
-        crashcount = 0
-        while branches > 0 and crashcount < 100:        # place any other branches at random
-            crashcount += 1
-            spot = randint(0,cheight-1)
-            if eokay and randint(0,1) == 1:       # do those start at the east?
-                if is_character(space, (x+cwidth-1,y+spot), '#') and not is_character(space, (x,y+spot+1), 'C') \
-                   and not is_character(space, (x,y+spot-1), 'C') and not is_character(space, (x+cwidth-1,y+spot-1), 'C') \
-                   and not is_character(space, (x+cwidth-1,y+spot+1), 'C'):
-                    cl = randint(cwidth/3, cwidth*2/3)
-                    m = x+cwidth-1
-                    n = y+spot
-                    newdoors.append((m+1,n))
-                    while m >= x+cwidth-cl and not is_character(space, (m,n), 'C'):
-                        if m == x+cwidth-cl and not (is_character(space, (m,n+1), 'C') or is_character(space, (m,n-1), 'C')):
-                            space[(m,n)] = 'c'
-                            deadends.append((m,n))
-                        else:
-                            space[(m,n)] = 'C'
-                        m -= 1
-                    branches -= 1
-            elif wokay:                       # or west?
-                if is_character(space, (x,y+spot), '#') and not is_character(space, (x,y+spot+1), 'C') \
-                   and not is_character(space, (x,y+spot-1), 'C') and not is_character(space, (x+cwidth-1,y+spot-1), 'C') \
-                   and not is_character(space, (x+cwidth-1,y+spot+1), 'C'):
-                    cl = randint(cwidth/3, cwidth*2/3)
-                    m = x
-                    n = y+spot
-                    newdoors.append((m-1,n))
-                    while m <= x+cl-1 and not is_character(space, (m,n), 'C'):
-                        if m == x+cl-1 and not (is_character(space, (m,n+1), 'C') or is_character(space, (m,n-1), 'C')):
-                            space[(m,n)] = 'c'
-                            deadends.append((m,n))
-                        else:
-                            space[(m,n)] = 'C'
-                        m += 1
-                    branches -= 1
-        if crashcount == 100: print 'couldn\'t place any more e/w branches'  ####
-    print 'deadends', deadends ####
-    for end in deadends[:]:                            # now let's connect some dead-ends
-        m,n = end
-        if not is_character(space, end, 'c'):
-            deadends.remove(end)
-        else:
-            go = ['n', 's', 'e', 'w']               # which directions will we look?
-            if is_character(space, (m,n-1), 'C') or is_character(space, (m,n-1), 'c') or end in ndoors:
-                go.remove('n')
-            if is_character(space, (m,n+1), 'C') or is_character(space, (m,n+1), 'c') or end in sdoors:
-                go.remove('s')
-            if is_character(space, (m+1,n), 'C') or is_character(space, (m+1,n), 'c') or end in edoors:
-                go.remove('e')
-            if is_character(space, (m-1,n), 'C') or is_character(space, (m-1,n), 'c') or end in wdoors:
-                go.remove('w')
-            if len(go) < 3:
-                space[end] = 'C'
-                deadends.remove(end)
-            else:
-                while len(go) > 0 and end in deadends:
-                    g = go[randint(0,len(go)-1)]
-                    go.remove(g)
-                    if g == 'n':
-                        k = n
-                        while k >= y:
-                            k -= 1
-                            if is_character(space, (m,k), 'C') or is_character(space, (m,k), 'c'):
-                                deadends.remove(end)
-                                while k <= n:
-                                    space[(m,k)] = 'C'
-                                    k += 1
-                                break
-                    elif g == 's':
-                        k = n
-                        while k <= y+cheight-1:
-                            k += 1
-                            if is_character(space, (m,k), 'C') or is_character(space, (m,k), 'c'):
-                                deadends.remove(end)
-                                while k >= n:
-                                    space[(m,k)] = 'C'
-                                    k -= 1
-                                break
-                    elif g == 'e':
-                        h = m
-                        while h <= x+cwidth-1:
-                            h += 1
-                            if is_character(space, (h,n), 'C') or is_character(space, (h,n), 'c'):
-                                deadends.remove(end)
-                                while h >= m:
-                                    space[(h,n)] = 'C'
-                                    h -= 1
-                                break
-                    else:
-                        h = m
-                        while h >= x:
-                            h -= 1
-                            if is_character(space, (h,n), 'C') or is_character(space, (h,n), 'c'):
-                                deadends.remove(end)
-                                while h <= m:
-                                    space[(h,n)] = 'C'
-                                    h += 1
-                                break
-                    if len(deadends) == 0:
-                        break
-#    for d in newdoors:
-#        doors.append(d)
-    if newdoors:
-        doors += newdoors
-#        place_ewcomponent(space, (coordinate[0]+cwidth+1, cindex[1]+half_height, 'e' or 'w' but filter newdoors to decide?), flavor, doors, nsprob*branchpersistence, ewprob)
-    print 'doors:', doors ####
-    for end in deadends:
-        print 'deadends abandoned:', end ####
-        space[end] = 'C'
-    return space
-"""
-
 grid = Grid(winwidth, winheight)      # okay, make a blank screen
-#outer_space = generate_station(outer_space, (0,0,'n'), {})  # this is the old way to put a station in space
 
-stations.append(Station(outer_space, (0,0,'n'), {}))  # this is the new way (what region?, (origin x,origin y,from what direction?), what flavors?)
+stations.append(Station(outer_space, (0,0,cardinals[randint(0,3)]), {}))  # (what region?, (origin x,origin y,from what direction?), what flavors?)
 
 grid.update(outer_space)              # put that space on the screen
 grid.border()                         # make it look nice
 print grid
 
-# Do:  Write spawn_ewcorridors, spawn_nwbranches, spawn_equipment
-# Update and introduce spawn_ewcomponent
-# Use pygame to make a real UI!
+# Do:  Use pygame to make a real UI!
