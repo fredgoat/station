@@ -21,27 +21,43 @@ super_seed = randint(1,1000)
 print "This seed is", super_seed
 seed(super_seed)    # this will let you go back to good randomnesses
 
-branchpersistence = 0.8     # corridor branches persist (or die) by a power of this
-compfreq         = 0.8     # probability that a door will actually spawn a component, rather than become exterior
-winwidth        = 70      # window dimensions
-winheight       = 70
-mincompheight   = 4       # component dimensions
-mincompwidth    = 4
-maxcompheight   = 10
-maxcompwidth    = 10
-bigcompfreq     = 0.15    # how often are comps bigger than max & by what factor?
-comp_multiplier = 2
+import pygame
+pygame.init()
 
-outer_space = {}
-cardinals = ['n', 's', 'w', 'e']
-windex = (winwidth/-2,winheight/-2)
+branchPersistence = 0.8     # corridor branches persist (or die) by a power of this
+compFreq         = 0.8     # probability that a door will actually spawn a component, rather than become exterior
+minCompHeight   = 4       # component dimensions
+minCompWidth    = 4
+maxCompHeight   = 10
+maxCompWidth    = 10
+bigCompFreq     = 0.15    # how often are comps bigger than max & by what factor?
+compMultiplier = 2
+
 stations = []
+outerSpace = {}
+cardinals = ['n', 's', 'w', 'e']
+
+winWidth        = 80      # window dimensions measured in tiles
+winHeight       = 60
+wIndex = (float(winWidth) / -2, float(winHeight) / -2)        # this is the upper left corner of a screen centered on (0,0)
+winZoom         = 10      # how many pixels per tile
+
 """ Each station is an object with a list of components
 each component is an object with an index, dimensions, doors, flavor, and equipment
 index is a tuple, dimensions are two numbers, doors is a list of tuples,
 flavor is a dict of numbers for each flavor, i.e. {'med': 5, 'sci': 2}
 equipment is a list of dicts including coordinate, dimensions, type, and inventory
 """
+
+clock = pygame.time.Clock()
+mouse = {'pos':(0,0), 1:0, 2:0, 3:0, 4:0, 5:0, 6:0} # {position, button 1, button 2, etc}
+
+gameDisplay = pygame.display.set_mode((winWidth * winZoom, winHeight * winZoom))      # the actual window will have ten pixels per tile
+pygame.display.set_caption('Space Station')
+backgroundColor = (0, 0, 0)
+defaultTile = pygame.image.load('default tile.bmp')
+corridorTile = pygame.image.load('corridor tile.bmp')
+airlockTile = pygame.image.load('airlock tile.bmp')
 
 
 def check_return_not_none(func):
@@ -59,10 +75,34 @@ def check_return_not_none(func):
 
     return decorated_function
 
+def game_loop(mouse, grid, wIndex, winZoom, outerSpace):
+    while True:
+        for event in pygame.event.get():  # go as long as player doesn't hit the upper right x
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                quit()
+
+            elif pygame.mouse.get_focused():
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    mouse[event.button] = 1
+                    mouse['pos'] = event.pos
+                elif event.type == pygame.MOUSEBUTTONUP:
+                    mouse[event.button] = 0
+                    mouse['pos'] = event.pos
+                elif event.type == pygame.MOUSEMOTION:
+                    mouse['pos'] = event.pos
+
+                if mouse[1]:
+                    x, y = pygame.mouse.get_rel()
+                    wIndex = (wIndex[0]-min(max(float(x)/winZoom,-5),5), wIndex[1]-min(max(float(y)/winZoom,-5),5))
+                    grid.update(wIndex, winZoom, outerSpace)
+
+        pygame.display.update()  # redraw everything
+        clock.tick(60)  # allow 0.06 seconds to pass
 
 class Grid(object):
     """The Grid is basically the screen or UI"""
-    def __init__(self, width=winwidth, height=winheight, character=' '):
+    def __init__(self, width=winWidth, height=winHeight, character=' '):
         self.grid = [[character for x in xrange(width)] for y in xrange(height)]
 
     def ischar(self, coords, character=' '):
@@ -81,25 +121,35 @@ class Grid(object):
         else:
             return False
 
+    """
     def placechar(self, coords, character):
         x, y = coords
-        self.grid[y][x] = character
+        self.grid[y][x] = character """
 
-    def update(self, space, character=' '):
-        "This wipes the screen, then fills in anything from that part of outer_space"
-        self.grid = [[character for x in xrange(winwidth)] for y in xrange(winheight)] # blank slate
-        window = filter(lambda x: windex[0]<=x[0]<winwidth+windex[0] and windex[1]<=x[1]<winheight+windex[1], space.keys())
+    def update(self, wIndex, winZoom, space, character=' '):
+        "This wipes the screen, then fills in anything from that part of outerSpace"
+        self.grid = [[character for x in xrange(winWidth)] for y in xrange(winHeight)] # blank slate
+        gameDisplay.fill(backgroundColor)                                              # ...on both screens
+        print wIndex
+        window = filter(lambda x: wIndex[0] <= x[0] < winWidth + wIndex[0] and wIndex[1] <= x[1] < winHeight + wIndex[1], space.keys())
         for point in window:            # then get all the relevant points from space
             m, n = point
-            self.grid[n-windex[1]][m-windex[0]] = space[(m,n)]
+            self.grid[n - int(round(wIndex[1]))][m - int(round(wIndex[0]))] = space[(m, n)]
+            if space[(m, n)] == '#':            # draw the 10x10 tiles on the window, accounting for window index
+                gameDisplay.blit(defaultTile, (round((m-wIndex[0])*winZoom), round((n-wIndex[1])*winZoom)))
+            elif space[(m, n)] == 'C':
+                gameDisplay.blit(corridorTile, (round((m-wIndex[0])*winZoom), round((n-wIndex[1])*winZoom)))
+            elif space[(m, n)] == 'A':
+                gameDisplay.blit(airlockTile, (round((m-wIndex[0])*winZoom), round((n-wIndex[1])*winZoom)))
+        print wIndex
 
     def border(self, border = 'X'):
-        for a in range(winwidth):
+        for a in range(winWidth):
             self.grid[0][a] = border
-            self.grid[winheight-1][a] = border
-        for b in range(winheight):
+            self.grid[winHeight - 1][a] = border
+        for b in range(winHeight):
             self.grid[b][0] = border
-            self.grid[b][winwidth-1] = border
+            self.grid[b][winWidth - 1] = border
 
     def __repr__(self):                 # print it!
         joined = ''
@@ -379,13 +429,13 @@ class Station(object):
     def spawn_component(self, cindex, flavor, doors, nsprob, ewprob):
         crashcount = 0
         while crashcount * (1+self.component_count) < 100:    # try this until you get it, but don't die.
-            half_width  = randint(mincompwidth, maxcompwidth) / 2
-            half_height = randint(mincompheight, maxcompheight) / 2
+            half_width  = randint(minCompWidth, maxCompWidth) / 2
+            half_height = randint(minCompHeight, maxCompHeight) / 2
             crashcount += 1
             print "Component placement attempt", crashcount                                                         ####
-            if random() < bigcompfreq:          # maybe this is a super big component?
-                half_width  *= comp_multiplier
-                half_height *= comp_multiplier
+            if random() < bigCompFreq:          # maybe this is a super big component?
+                half_width  *= compMultiplier
+                half_height *= compMultiplier
             cwidth = 2 * half_width + 1         # component width
             cheight = 2 * half_height + 1       # component height
             self.coordinates = (cindex[0] - 2 * half_width if cindex[2] == 'e' else cindex[0] if cindex[2] == 'w' \
@@ -403,11 +453,11 @@ class Station(object):
             print "to", realdoors
             print "Should this component form?  So far we have", self.component_count                               ####
             if is_area(self.space, self.coordinates, cwidth, cheight) and not (self.component_count > 0 and not realdoors): # not blocked? still doors left?
-                if random() < compfreq or self.component_count == 0:
+                if random() < compFreq or self.component_count == 0:
                     self.component_count += 1
                     doors = realdoors
                     for door in doors:
-                        self.space[door] = 'a'
+                        self.space[door] = 'A'
                     if cindex[2] == 'n' or cindex[2] == 's':
                         self.components.append(NSComponent(self.space, self, cindex, half_width, half_height, self.flavor, doors, nsprob, ewprob))
                     else:
@@ -422,6 +472,7 @@ class Station(object):
         self.components = []
         self.component_count = 0
         self.spawn_component(self.stindex, self.flavor, [], random()*0.4+0.4, random()*0.4+0.4)
+        pygame.display.update()
 
 
 class Component(object):
@@ -624,7 +675,7 @@ class NSComponent(Component):
             while direc:
                 tion = direc.pop(randint(0,len(direc)-1))                    # pick a direction and spawn some components!
                 spawnx = self.coordinates[0]-2 if tion == 'e' else self.coordinates[0]+cwidth+1
-                self.station.spawn_component((spawnx, self.coordinates[1]+self.half_height, tion), self.flavor, self.doors, self.nsprob, branchpersistence * self.ewprob)
+                self.station.spawn_component((spawnx, self.coordinates[1]+self.half_height, tion), self.flavor, self.doors, self.nsprob, branchPersistence * self.ewprob)
         print 'doors:', self.doors ####
         for end in deadends:
             print 'deadends abandoned:', end ####
@@ -700,7 +751,7 @@ class NSComponent(Component):
         if newdoors:
             self.doors += newdoors
             self.station.spawn_component((cindex[0], cindex[1] + cheight + 1 if cindex[2] == 'n' else cindex[1] - cheight - 1, cindex[2]), \
-                                         self.flavor, self.doors, nsprob * branchpersistence, ewprob)
+                                         self.flavor, self.doors, nsprob * branchPersistence, ewprob)
         self.spawn_webranches(deadends)
 #        return space
 
@@ -812,7 +863,7 @@ class WEComponent(Component):
             while direc:
                 tion = direc.pop(randint(0,len(direc)-1))                    # pick a direction and spawn some components!
                 spawny = self.coordinates[1]-2 if tion == 's' else self.coordinates[1]+cheight+1
-                self.station.spawn_component((self.coordinates[0]+self.half_width, spawny, tion), self.flavor, self.doors, self.nsprob * branchpersistence, self.ewprob)
+                self.station.spawn_component((self.coordinates[0]+self.half_width, spawny, tion), self.flavor, self.doors, self.nsprob * branchPersistence, self.ewprob)
         print 'doors:', self.doors ####
         for end in deadends:
             print 'deadends abandoned:', end ####
@@ -888,7 +939,7 @@ class WEComponent(Component):
         if newdoors:
             self.doors += newdoors
             self.station.spawn_component((cindex[0]+cwidth+1 if cindex[2] == 'w' else cindex[0]-cwidth-1, cindex[1], cindex[2]), \
-                                      self.flavor, self.doors, nsprob, ewprob * branchpersistence)
+                                         self.flavor, self.doors, nsprob, ewprob * branchPersistence)
         self.spawn_nsbranches(deadends)
 #        return space
 
@@ -902,12 +953,16 @@ class WEComponent(Component):
 #    return space
 
 
-grid = Grid(winwidth, winheight)      # okay, make a blank screen
+grid = Grid(winWidth, winHeight)      # okay, make a blank ASCII matrix
+gameDisplay.fill(backgroundColor)     # and a blank image window
 
-stations.append(Station(outer_space, (0,0,cardinals[randint(0,3)]), {}))  # (what region?, (origin x,origin y,from what direction?), what flavors?)
+stations.append(Station(outerSpace, (0, 0, cardinals[randint(0, 3)]), {}))  # (what region?, (origin x,origin y,from what direction?), what flavors?)
 
-grid.update(outer_space)              # put that space on the screen
+grid.update(wIndex, winZoom, outerSpace)              # put that space on the screen
 grid.border()                         # make it look nice
 print grid
+game_loop(mouse, grid, wIndex, winZoom, outerSpace)  # run the game until the user hits the x
+pygame.quit()  # if by some miracle you get here without that happening, quit immediately omg
+quit()
 
-# Do:  Use pygame to make a real UI!
+#Do:  Fix line 137 list assignment out of range???
