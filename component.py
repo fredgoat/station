@@ -33,6 +33,11 @@ maxCompWidth    = 10
 bigCompFreq     = 0.15    # how often are comps bigger than max & by what factor?
 compMultiplier = 2
 
+noFlavor = {'power':0, 'cargo':0, 'quarters':0, 'life support':0, 'medical':0, 'hydroponics':0, \
+                 'propulsion':0, 'sensors':0, 'comms':0, 'reclamation':0, 'fabrication':0}
+defaultFlavor = {'power':20, 'cargo':10, 'quarters':0, 'life support':10, 'medical':0, 'hydroponics':0, \
+                 'propulsion':0, 'sensors':0, 'comms':0, 'reclamation':0, 'fabrication':0}
+
 stations = []
 outerSpace = {}
 cardinals = ['n', 's', 'w', 'e']
@@ -58,6 +63,7 @@ pygame.event.set_allowed([pygame.QUIT, pygame.KEYDOWN, pygame.KEYUP, pygame.MOUS
 gameDisplay = pygame.display.set_mode((winWidth * winZoom, winHeight * winZoom))      # the actual window will start at ten pixels per tile
 pygame.display.set_caption('Space Station')
 backgroundColor = (0, 0, 0)
+background = pygame.image.load('background.bmp').convert()
 defaultTile = pygame.image.load('default tile.bmp').convert()           # these are now Surfaces, and converted to a nice /pixel/ format
 corridorTile = pygame.image.load('corridor tile.bmp').convert()         # later if I have sprites I can set_colorkey((255,255,255)) to make the white parts transparent
 airlockTile = pygame.image.load('airlock tile.bmp').convert()
@@ -147,11 +153,12 @@ class Grid(object):
         intdex = (int(round(index[0])), int(round(index[1])))
         #self.grid = [[character for x in xrange(winWidth*zoom)] for y in xrange(winHeight*zoom)] # blank slate
         gameDisplay.fill(backgroundColor)                                              # ...on both screens
+        gameDisplay.blit(background, (0, 0))
         window = filter(lambda coords: intdex[0]-2 <= coords[0] < (winWidth+20)*zoom + intdex[0] and intdex[1]-2 <= coords[1] < (winHeight+10)*zoom + intdex[1], space.keys())
         for point in window:            # then get all the relevant points from space
             m, n = point
             #self.grid[n - intdex[1]][m - intdex[0]] = space[(m, n)]
-            if space[(m, n)] == '#':            # draw the 10x10 tiles on the window, accounting for window index
+            if space[(m, n)] == '#':            # draw the 10x10 tiles on the window, accounting for window index ... turn this into a function dict?
                 gameDisplay.blit(pygame.transform.scale(defaultTile,(zoom, zoom)), (round((m - index[0]) * zoom), round((n - index[1]) * zoom)))
             elif space[(m, n)] == 'C':
                 gameDisplay.blit(pygame.transform.scale(corridorTile,(zoom, zoom)), (round((m - index[0]) * zoom), round((n - index[1]) * zoom)))
@@ -197,6 +204,17 @@ def is_area(space, coords, width, height, character=' '): # is this area complet
                 return False
     return True
 
+# def block_off(space, index, half_width, half_height)
+#     pick a random point and go in circles
+#     return blocks
+
+def season(flavor):
+    seasonings = 0
+    for spice in flavor.keys():
+        seasonings += flavor[spice]
+    for spice in flavor.keys():
+        flavor[spice] += randint(0,30) - flavor[spice]/4
+    return flavor
 
 @check_return_not_none
 def flood(space, coords, target, replacement):
@@ -478,15 +496,14 @@ class Station(object):
                     else:
                         self.components.append(WEComponent(self.space, self, cindex, half_width, half_height, self.flavor, doors, nsprob, ewprob))
                 break
-#            return space
 
     def __init__(self, space, stindex, flavor):
         self.space = space
         self.stindex = stindex
-        self.flavor = flavor
+        self.flavor = season(flavor)
         self.components = []
         self.component_count = 0
-        self.spawn_component(self.stindex, self.flavor, [], random()*0.4+0.4, random()*0.4+0.4)
+        self.spawn_component(self.stindex, self.flavor, [], random()*0.4+0.4, random()*0.4+0.4)     # ns and we probs are random between .4 and .8
         pygame.display.update()
 
 
@@ -571,10 +588,16 @@ class Component(object):
                         if len(deadends) == 0:
                             break
 
+    # def place_equipment(self):
+    #     for block in block_off(self.space, self.cindex, self.half_width, self.half_height):
+    #     pick a piece of equipment and add it to self.flavored and scale it and add it to space
+    #     blit it or something I dunno
+
+
     def __init__(self, space, station, cindex, half_width, half_height, flavor, doors, nsprob, ewprob):
         self.space = space
         self.cindex = cindex
-        self.flavor = flavor
+        self.flavor = season(flavor)
         self.doors = doors
         self.nsprob = nsprob
         self.ewprob = ewprob
@@ -588,6 +611,8 @@ class Component(object):
         else cindex[0] - half_width, cindex[1] if cindex[2] == 'n' else cindex[1] - 2 * half_height \
         if cindex[2] == 's' else cindex[1] - half_height)       # coordinates are at the top left, cindex is at the center on the spawning side, cindex[2] is direction spawning happens /from/
         self.place()
+        self.flavored = noFlavor
+        # space = self.place_equipment()
 
 class NSComponent(Component):
 
@@ -695,7 +720,6 @@ class NSComponent(Component):
         for end in deadends:
             print 'deadends abandoned:', end ####
             self.space[end] = 'C'
-#        return space
 
     def spawn_nscorridors(self, space, cindex, half_width, half_height, flavor, nsprob, ewprob):
         x, y = self.coordinates                           # top left coordinates of the component
@@ -768,14 +792,11 @@ class NSComponent(Component):
             self.station.spawn_component((cindex[0], cindex[1] + cheight + 1 if cindex[2] == 'n' else cindex[1] - cheight - 1, cindex[2]), \
                                          self.flavor, self.doors, nsprob * branchPersistence, ewprob)
         self.spawn_webranches(deadends)
-#        return space
 
     def __init__(self, space, station, cindex, half_width, half_height, flavor, doors, nsprob, ewprob):
         Component.__init__(self, space, station, cindex, half_width, half_height, flavor, doors, nsprob, ewprob)
         self.spawn_nscorridors(space, cindex, half_width, half_height, flavor, nsprob, ewprob)
         link_corridors(space, self.coordinates, self.width, self.height, self.doors)
-#       space = place_equipment(space, cindex, half_width, half_height, flavor)
-#    return space
 
 class WEComponent(Component):
 
@@ -883,7 +904,6 @@ class WEComponent(Component):
         for end in deadends:
             print 'deadends abandoned:', end ####
             self.space[end] = 'C'
-#        return space
 
     def spawn_wecorridors(self, space, cindex, half_width, half_height, flavor, nsprob, ewprob):
         x, y = self.coordinates                               # top left coordinates of the component
@@ -956,31 +976,25 @@ class WEComponent(Component):
             self.station.spawn_component((cindex[0]+cwidth+1 if cindex[2] == 'w' else cindex[0]-cwidth-1, cindex[1], cindex[2]), \
                                          self.flavor, self.doors, nsprob, ewprob * branchPersistence)
         self.spawn_nsbranches(deadends)
-#        return space
 
 
     def __init__(self, space, station, cindex, half_width, half_height, flavor, doors, nsprob, ewprob):
         Component.__init__(self, space, station, cindex, half_width, half_height, flavor, doors, nsprob, ewprob)
-        self.place()
         self.spawn_wecorridors(space, cindex, half_width, half_height, flavor, nsprob, ewprob)
         link_corridors(space, self.coordinates, self.width, self.height, self.doors)
-#        space = place_equipment(space, cindex, half_width, half_height, flavor)
-#    return space
 
 
 grid = Grid(winWidth, winHeight)      # okay, make a blank ASCII matrix
 gameDisplay.fill(backgroundColor)     # and a blank image window
 
-stations.append(Station(outerSpace, (0, 0, cardinals[randint(0, 3)]), {}))  # (what region?, (origin x,origin y,from what direction?), what flavors?)
+stations.append(Station(outerSpace, (0, 0, cardinals[randint(0, 3)]), defaultFlavor))  # (what region?, (origin x,origin y,from what direction?), what flavors?)
 
 grid.update(wIndex, winZoom, outerSpace)              # put that space on the screen
-#grid.border()                         # make it look nice
-#print grid
+
 game_loop(mouse, grid, wIndex, winZoom, outerSpace)  # run the game until the user hits the x
 pygame.quit()  # if by some miracle you get here without that happening, quit immediately omg
 quit()
 
 #Do:  Make flavorful equipment!  Make controls!
 
-# What flavors?  Cargo, Life Support, Propulsion, Power, Sensors, Comms, Fabrication, Reclamation, Quarters
-# Medical?  Armory?  Science?  Weapons?
+# What other flavors?  Armory?  Science?  Weapons?
