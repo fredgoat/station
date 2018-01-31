@@ -1,19 +1,27 @@
 """ So basically, you spawn a component, which spawns corridors,
 which define equipment areas and spawn airlocks, which spawn more components.
 Then you fill in the equipment, according to that component's flava.
+
+Each station is an object with a list of components
+each component is an object with an index, dimensions, doors, flavor, and equipment
+index is a tuple, dimensions are two numbers, doors is a list of tuples,
+flavor is a dict of numbers for each flavor, i.e. {'med': 5, 'sci': 2}
+equipment is a list of dicts including index, dimensions, type, and inventory
+
+Index generally means upper left point.  Coordinate generally means center.  Opposite generally means lower right.
 """
 
-
+# __repr__(self) overrides what happens when you print a thing
 # time.time() tells you what time it is (seconds since 1970)
 # @ decorates a function with another function, so the first one runs inside the second
-# import doctest? doctest.testmod() returns None if all fake Python sessions in comments in this module do what they say (like so)
-'''
->>> place_character(['  ', '  '], (0, 1), 'x')
-['  ', 'x ']
-'''
 
-import pdb         # pdb.set_trace() stops everything and lets you do pdb commands
-import traceback   # traceback.print_stack() just prints the stack at that point
+import pdb          # pdb.set_trace() stops everything and lets you do pdb commands
+import traceback    # traceback.print_stack() just prints the stack at that point
+import doctest      # doctest.testmod() returns None if all fake Python sessions in comments in this module return what they say, like so
+'''
+>>> function(*args)
+returnvalue
+'''
 
 from random import random, randint, seed
 
@@ -37,10 +45,13 @@ noFlavor = {'power':0, 'cargo':0, 'quarters':0, 'life support':0, 'medical':0, '
                  'propulsion':0, 'sensors':0, 'comms':0, 'reclamation':0, 'fabrication':0}
 defaultFlavor = {'power':20, 'cargo':10, 'quarters':0, 'life support':10, 'medical':0, 'hydroponics':0, \
                  'propulsion':0, 'sensors':0, 'comms':0, 'reclamation':0, 'fabrication':0}
+equipmentFlavors = {'power':{'generator':1}, 'cargo':{}, 'quarters':{}, 'life support':{}, 'medical':{}, 'hydroponics':{}, \
+                 'propulsion':{}, 'sensors':{}, 'comms':{}, 'reclamation':{}, 'fabrication':{}}        # this is each flavor's equipment value per tile
+equipmentLoot = {'generator': []}
 
 stations = []
 outerSpace = {}
-cardinals = ['n', 's', 'w', 'e']
+cardinals = ['n', 'e', 's', 'w']
 
 winWidth        = 120      # window dimensions measured in tiles
 winHeight       = 60
@@ -48,13 +59,6 @@ wIndex = (float(winWidth) / -2, float(winHeight) / -2)        # this is the uppe
 winZoom         = 10      # how many pixels per tile
 maxZoom         = 20
 minZoom         = 3
-
-""" Each station is an object with a list of components
-each component is an object with an index, dimensions, doors, flavor, and equipment
-index is a tuple, dimensions are two numbers, doors is a list of tuples,
-flavor is a dict of numbers for each flavor, i.e. {'med': 5, 'sci': 2}
-equipment is a list of dicts including coordinate, dimensions, type, and inventory
-"""
 
 clock = pygame.time.Clock()
 mouse = {'pos':(0,0), 1:0, 2:0, 3:0, 4:0, 5:0, 6:0} # {position, button 1, button 2, etc}
@@ -68,6 +72,7 @@ defaultTile = pygame.image.load('default tile.bmp').convert()           # these 
 corridorTile = pygame.image.load('corridor tile.bmp').convert()         # later if I have sprites I can set_colorkey((255,255,255)) to make the white parts transparent
 airlockTile = pygame.image.load('airlock tile.bmp').convert()
 
+drawnTiles = {'#': defaultTile, 'C': corridorTile, 'A': airlockTile, 'generator': defaultTile}
 
 def check_return_not_none(func):
     """A decorator for checking that a function is not returning None.
@@ -158,30 +163,67 @@ class Grid(object):
         for point in window:            # then get all the relevant points from space
             m, n = point
             #self.grid[n - intdex[1]][m - intdex[0]] = space[(m, n)]
-            if space[(m, n)] == '#':            # draw the 10x10 tiles on the window, accounting for window index ... turn this into a function dict?
-                gameDisplay.blit(pygame.transform.scale(defaultTile,(zoom, zoom)), (round((m - index[0]) * zoom), round((n - index[1]) * zoom)))
-            elif space[(m, n)] == 'C':
-                gameDisplay.blit(pygame.transform.scale(corridorTile,(zoom, zoom)), (round((m - index[0]) * zoom), round((n - index[1]) * zoom)))
-            elif space[(m, n)] == 'A':
-                gameDisplay.blit(pygame.transform.scale(airlockTile,(zoom, zoom)), (round((m - index[0]) * zoom), round((n - index[1]) * zoom)))
+            # if space[(m, n)] == '#':            # draw the 10x10 tiles on the window, accounting for window index ... turn this into a function dict?
+            #     gameDisplay.blit(pygame.transform.scale(defaultTile,(zoom, zoom)), (round((m - index[0]) * zoom), round((n - index[1]) * zoom)))
+            # elif space[(m, n)] == 'C':
+            #     gameDisplay.blit(pygame.transform.scale(corridorTile,(zoom, zoom)), (round((m - index[0]) * zoom), round((n - index[1]) * zoom)))
+            # elif space[(m, n)] == 'A':
+            #     gameDisplay.blit(pygame.transform.scale(airlockTile,(zoom, zoom)), (round((m - index[0]) * zoom), round((n - index[1]) * zoom)))
+            gameDisplay.blit(pygame.transform.scale(drawnTiles[space[m,n]],(zoom, zoom)), (round((m - index[0]) * zoom), round((n - index[1]) * zoom)))
+        nearby = filter(lambda x: x.space == space and intdex[0]-50 < x.stindex[0] < intdex[0]+(winWidth+100)*zoom \
+                        and intdex[1]-50 < x.stindex[1] < intdex[1]+(winHeight+100)*zoom, stations)
+        for station in nearby:
+            for comp in station.components:
+                for equip in comp.equipment:
+                    gameDisplay.blit(pygame.transform.scale(drawnTiles[equip['type']], (equip['width']*zoom, equip['height']*zoom)), \
+                                                            (round((equip['eindex'][0] - index[0]) * zoom), \
+                                                             round((equip['eindex'][1] - index[1]) * zoom)))
 
-#    def border(self, border = 'X'):
-#        for a in range(winWidth):
-#            self.grid[0][a] = border
-#            self.grid[winHeight - 1][a] = border
-#        for b in range(winHeight):
-#            self.grid[b][0] = border
-#            self.grid[b][winWidth - 1] = border
 
-#    def __repr__(self):                 # print it!
-#        joined = ''
-#        for y in self.grid:
-#            line = ''
-#            for x in y:
-#                line += x
-#                line += ' '
-#            joined += line + '\n'
-#        return joined
+"""
+   def border(self, border = 'X'):
+       for a in range(winWidth):
+           self.grid[0][a] = border
+           self.grid[winHeight - 1][a] = border
+       for b in range(winHeight):
+           self.grid[b][0] = border
+           self.grid[b][winWidth - 1] = border
+
+   def __repr__(self):                 # print it!
+       joined = ''
+       for y in self.grid:
+           line = ''
+           for x in y:
+               line += x
+               line += ' '
+           joined += line + '\n'
+       return joined
+"""
+
+
+def go(coords, direction):
+    if direction == 'n':
+        return (coords[0], coords[1] - 1)
+    elif direction == 'e':
+        return (coords[0] + 1, coords[1])
+    elif direction == 's':
+        return (coords[0], coords[1] + 1)
+    elif direction == 'w':
+        return (coords[0] - 1, coords[1])
+    else:
+        print "invalid direction"
+
+
+def replace(space, index, opposite, target, replacement):
+    x = index[0]
+    y = index[1]
+    width = abs(opposite[0]-x)+1
+    height = abs(opposite[1]-y)+1
+    for n in range(height):
+        for m in range(width):
+            if is_character(space, (x+m, y+n), target):
+                space[(x+m, y+n)] = replacement
+    return space
 
 
 def is_character(space, coords, character=' '): # epaulet?
@@ -196,25 +238,74 @@ def is_character(space, coords, character=' '): # epaulet?
         return False
 
 
-def is_area(space, coords, width, height, character=' '): # is this area completely blank?
-    x, y = coords
+def is_area(space, index, width, height, character=' '): # is this area completely blank?
+    x, y = index
     for ln in range(height):                    # is the area blocked at all?
         for pt in range(width):
             if not is_character(space, (x+pt, y+ln), character):
                 return False
     return True
 
-# def block_off(space, index, half_width, half_height)
-#     pick a random point and go in circles
-#     return blocks
+
+def is_any(space, index, width, height, character):  # are there any of this thing in this area?
+    x = index[0]
+    y = index[1]
+    for ln in range(height):
+        for pt in range(width):
+            if is_character(space, (x+pt, y+ln), character):
+                return True
+    return False
+
+
+def block_off(space, index, half_width, half_height):
+    width = 2 * half_width + 1
+    height = 2 * half_height + 1
+    blocks = []                     # these will be tuples of (index, width, height) in which equipment can be placed
+    attempts = 0
+    while attempts < 100 and is_any(space, index, width, height, '#'):      # while there's any '#' left
+        attempts += 1
+        spot = (index[0] + randint(0,width-1), index[1] + randint(0,height-1))      # pick a random spot
+        if is_character(space, spot, '#'):                                              # and if it's got a '#'
+            x, y = spot
+            way = randint(0,3)
+            direction = cardinals[way]                                      # pick a direction
+            opposite = (0,0)
+            for x in xrange(2):         # try to circle twice
+                for x in xrange(2):     # each circle is two L-turns
+                    for x in xrange(2):                                         # go till you're blocked and turn counter-clockwise, twice
+                        while is_character(space, (x,y), '#'):
+                            x, y = go((x,y), direction)
+                    opposite = (x, y)                                           # mark that spot, then continue
+                if (x, y) == spot:                                              # if you wind up where you started, that's a block
+                    blocks.append((spot, abs(spot[0]-x) + 1, abs(spot[1]-y) + 1))
+                    replace(space, spot, opposite, '#', '+')
+                else:
+                    spot = (x, y)
+    replace(space, index, (index[0]+width-1, index[1]+height-1), '+', '#')
+    return blocks
+
 
 def season(flavor):
     seasonings = 0
     for spice in flavor.keys():
         seasonings += flavor[spice]
     for spice in flavor.keys():
+        flavor[spice] *= 2
         flavor[spice] += randint(0,30) - flavor[spice]/4
     return flavor
+
+
+def flavor_add(base, addition):
+    for spice in base.keys():
+        base[spice] += addition[spice]
+    return base
+
+
+def flavor_subtract(base, subtraction):
+    for spice in base.keys():
+        base[spice] -= subtraction[spice]
+    return base
+
 
 @check_return_not_none
 def flood(space, coords, target, replacement):
@@ -458,7 +549,7 @@ def link_corridors(space, coords, cwidth, cheight, doors, attempt=1):      # thi
 
 
 class Station(object):
-
+    """Stations spawn initial components"""
     def spawn_component(self, cindex, flavor, doors, nsprob, ewprob):
         crashcount = 0
         while crashcount * (1+self.component_count) < 100:    # try this until you get it, but don't die.
@@ -492,9 +583,9 @@ class Station(object):
                     #    self.space[door] = 'A'
                     doors = realdoors
                     if cindex[2] == 'n' or cindex[2] == 's':
-                        self.components.append(NSComponent(self.space, self, cindex, half_width, half_height, self.flavor, doors, nsprob, ewprob))
+                        self.components.append(NSComponent(self.space, self, cindex, half_width, half_height, flavor, doors, nsprob, ewprob))
                     else:
-                        self.components.append(WEComponent(self.space, self, cindex, half_width, half_height, self.flavor, doors, nsprob, ewprob))
+                        self.components.append(WEComponent(self.space, self, cindex, half_width, half_height, flavor, doors, nsprob, ewprob))
                 break
 
     def __init__(self, space, stindex, flavor):
@@ -588,21 +679,38 @@ class Component(object):
                         if len(deadends) == 0:
                             break
 
-    # def place_equipment(self):
-    #     for block in block_off(self.space, self.cindex, self.half_width, self.half_height):
-    #     pick a piece of equipment and add it to self.flavored and scale it and add it to space
-    #     blit it or something I dunno
+    def place_equipment(self):
+        seasonings = 0
+        for spice in self.flavor.keys():
+            seasonings += self.flavor[spice]                        # add up all the flavor in this component
+        if not seasonings:
+            print "no flavor for equipment!"    ####
+        else:
+            for block in block_off(self.space, self.cindex, self.half_width, self.half_height):  # divide it into blocks, this returns a list of blocks, each one (index, width, height)
+                seas = randint(1,seasonings)
+                flav = False
+                attempts = 0
+                print "attempting equipment placement"
+                flavs = self.flavor.keys()
+                while seas > 0 and attempts < 100:                                 # pick a piece of equipment to place in each block
+                    flav = flavs.pop()
+                    seas -= self.flavor[flav]                   # pick a flavor from self.flavor
+                    attempts += 1
+                if equipmentFlavors[flav].keys():               # if this flavor even has any equipment to its name (remove this later?)
+                    equip = equipmentFlavors[flav].keys()[randint(0,len(equipmentFlavors[flav].keys())-1)]
+                    self.equipment.append({'eindex': block[0], 'width': block[1], 'height': block[2], 'type': equip, 'inv': equipmentLoot[equip]})
+                    self.flavored[flav] += equipmentFlavors[flav][equip] * block[1] * block[2]        # add tile flavor * area to self.flavored
 
 
     def __init__(self, space, station, cindex, half_width, half_height, flavor, doors, nsprob, ewprob):
         self.space = space
         self.cindex = cindex
-        self.flavor = season(flavor)
+        self.flavor = season(flavor)        # the flavor the component wants to have (mutate it from that provided by the spawn source)
         self.doors = doors
         self.nsprob = nsprob
         self.ewprob = ewprob
         self.station = station
-        self.equipment = []
+        self.equipment = []                 # equipment is a list of dicts including 'eindex', 'width', 'height', 'type': 'generator', and inv: []
         self.half_width = half_width
         self.half_height = half_height
         self.width = 2 * half_width + 1
@@ -611,8 +719,9 @@ class Component(object):
         else cindex[0] - half_width, cindex[1] if cindex[2] == 'n' else cindex[1] - 2 * half_height \
         if cindex[2] == 's' else cindex[1] - half_height)       # coordinates are at the top left, cindex is at the center on the spawning side, cindex[2] is direction spawning happens /from/
         self.place()
-        self.flavored = noFlavor
-        # space = self.place_equipment()
+        self.flavored = noFlavor            # the flavor from the equipment placed
+        space = self.place_equipment()
+        print self.equipment
 
 class NSComponent(Component):
 
@@ -713,7 +822,9 @@ class NSComponent(Component):
             while direc:
                 tion = direc.pop(randint(0,len(direc)-1))                    # pick a direction and spawn some components!
                 spawnx = self.coordinates[0]-2 if tion == 'e' else self.coordinates[0]+cwidth+1
-                self.station.spawn_component((spawnx, self.coordinates[1]+self.half_height, tion), self.flavor, self.doors, self.nsprob, branchPersistence * self.ewprob)
+                self.station.spawn_component((spawnx, self.coordinates[1]+self.half_height, tion), \
+                                             flavor_subtract(self.flavor, self.flavored), self.doors, \
+                                             self.nsprob, branchPersistence * self.ewprob)
         for door in self.doors:
             self.space[door] = 'A'
         print 'doors:', self.doors ####
@@ -790,7 +901,7 @@ class NSComponent(Component):
         if newdoors:
             self.doors += newdoors
             self.station.spawn_component((cindex[0], cindex[1] + cheight + 1 if cindex[2] == 'n' else cindex[1] - cheight - 1, cindex[2]), \
-                                         self.flavor, self.doors, nsprob * branchPersistence, ewprob)
+                                         flavor_subtract(self.flavor, self.flavored), self.doors, nsprob * branchPersistence, ewprob)
         self.spawn_webranches(deadends)
 
     def __init__(self, space, station, cindex, half_width, half_height, flavor, doors, nsprob, ewprob):
@@ -897,7 +1008,9 @@ class WEComponent(Component):
             while direc:
                 tion = direc.pop(randint(0,len(direc)-1))                    # pick a direction and spawn some components!
                 spawny = self.coordinates[1]-2 if tion == 's' else self.coordinates[1]+cheight+1
-                self.station.spawn_component((self.coordinates[0]+self.half_width, spawny, tion), self.flavor, self.doors, self.nsprob * branchPersistence, self.ewprob)
+                self.station.spawn_component((self.coordinates[0]+self.half_width, spawny, tion), \
+                                             flavor_subtract(self.flavor, self.flavored), self.doors, \
+                                             self.nsprob * branchPersistence, self.ewprob)
         for door in self.doors:
             self.space[door] = 'A'
         print 'doors:', self.doors ####
@@ -974,7 +1087,7 @@ class WEComponent(Component):
         if newdoors:
             self.doors += newdoors
             self.station.spawn_component((cindex[0]+cwidth+1 if cindex[2] == 'w' else cindex[0]-cwidth-1, cindex[1], cindex[2]), \
-                                         self.flavor, self.doors, nsprob, ewprob * branchPersistence)
+                                         flavor_subtract(self.flavor, self.flavored), self.doors, nsprob, ewprob * branchPersistence)
         self.spawn_nsbranches(deadends)
 
 
@@ -982,7 +1095,6 @@ class WEComponent(Component):
         Component.__init__(self, space, station, cindex, half_width, half_height, flavor, doors, nsprob, ewprob)
         self.spawn_wecorridors(space, cindex, half_width, half_height, flavor, nsprob, ewprob)
         link_corridors(space, self.coordinates, self.width, self.height, self.doors)
-
 
 grid = Grid(winWidth, winHeight)      # okay, make a blank ASCII matrix
 gameDisplay.fill(backgroundColor)     # and a blank image window
@@ -995,6 +1107,6 @@ game_loop(mouse, grid, wIndex, winZoom, outerSpace)  # run the game until the us
 pygame.quit()  # if by some miracle you get here without that happening, quit immediately omg
 quit()
 
-#Do:  Make flavorful equipment!  Make controls!
+#Do:  Fix equipment placement - 1x1's generating around the outer edges?  Photoshop some actual equipment?  Make controls!
 
 # What other flavors?  Armory?  Science?  Weapons?
