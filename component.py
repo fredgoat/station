@@ -1135,6 +1135,6 @@ game_loop(mouse, grid, wIndex, winZoom, outerSpace)  # run the game until the us
 pygame.quit()  # if by some miracle you get here without that happening, quit immediately omg
 quit()
 
-#Do:  Add more equipment! (equipmentFlavors, Loot, what else?)  Photoshop some actual equipment?  Make UI/controls!
+#Do:  Add more equipment! (equipmentFlavors, Loot, what else?)  Photoshop more?  Make UI/controls!
 
 # What other flavors?  Armory?  Science?  Propulsion?
