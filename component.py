@@ -8,7 +8,7 @@ radix is a tuple, dimensions are two numbers, doors is a list of tuples,
 flavor is a dict of numbers for each flavor, i.e. {'med': 5, 'sci': 2}
 equipment is a list of dicts including index, dimensions, type, and inventory
 
-Index = upper left point.  Extremity = lower right.  Coordinate = center/point.  Radix = spawn root point.
+Index = upper left point.  Extremity = lower right.  Coordinate = that point.  Radix = spawn root point.
 """
 
 # __repr__(self) overrides what happens when you print a thing
@@ -42,12 +42,12 @@ bigCompFreq     = 0.15    # how often are comps bigger than max & by what factor
 compMultiplier = 2
 
 noFlavor = {'power':0, 'cargo':0, 'quarters':0, 'life support':0, 'medical':0, 'hydroponics':0, \
-                 'propulsion':0, 'sensors':0, 'comms':0, 'reclamation':0, 'fabrication':0}
+                 'command':0, 'reclamation':0, 'fabrication':0}
 defaultFlavor = {'power':200, 'cargo':10, 'quarters':0, 'life support':10, 'medical':0, 'hydroponics':0, \
-                 'propulsion':0, 'sensors':0, 'comms':0, 'reclamation':0, 'fabrication':0}
-equipmentFlavors = {'power':{'generator':1}, 'cargo':{}, 'quarters':{}, 'life support':{}, 'medical':{}, 'hydroponics':{}, \
-                 'propulsion':{}, 'sensors':{}, 'comms':{}, 'reclamation':{}, 'fabrication':{}}        # this is each flavor's equipment value per tile
-equipmentLoot = {'generator': []}
+                 'command':0, 'reclamation':0, 'fabrication':0}
+equipmentFlavors = {'power':{'converter':1}, 'cargo':{}, 'quarters':{}, 'life support':{}, 'medical':{}, 'hydroponics':{}, \
+                 'command':{}, 'reclamation':{}, 'fabrication':{}}        # this is each flavor's equipment value per tile
+equipmentLoot = {'converter': []}
 
 stations = []
 outerSpace = {}
@@ -71,8 +71,25 @@ background = pygame.image.load('background.bmp').convert()
 defaultTile = pygame.image.load('default tile.bmp').convert()           # these are now Surfaces, and converted to a nice /pixel/ format
 corridorTile = pygame.image.load('corridor tile.bmp').convert()         # later if I have sprites I can set_colorkey((255,255,255)) to make the white parts transparent
 airlockTile = pygame.image.load('airlock tile.bmp').convert()
+defaultPattern = pygame.Surface((winWidth * winZoom, winHeight * winZoom))
+converterTile = pygame.image.load('converter tile.bmp').convert()
 
-drawnTiles = {'#': defaultTile, 'C': corridorTile, 'A': airlockTile, 'generator': defaultTile}
+
+def patterner(background, tile, size):                      # this draws a repeating pattern out of tile images
+    x = int(winWidth * winZoom / size[0] + 1)               # how many big ol' tiles fit side to side
+    y = int(winHeight * winZoom / size[1] + 1)              # how many fit up and down
+    for row in range(y):
+        for spot in range(x):
+            background.blit(tile, (spot * size[0], row * size[1]))      # blit that many in a pattern
+    return background
+
+class Tile(object):
+    def __init__(self, tile, size):
+        self.pattern = patterner(defaultPattern.copy(), pygame.transform.scale(tile, size), size)
+
+converter = Tile(converterTile, (30,30))
+
+drawnTiles = {'#': defaultTile, 'C': corridorTile, 'A': airlockTile, 'converter': converterTile}
 
 def check_return_not_none(func):
     """A decorator for checking that a function is not returning None.
@@ -125,6 +142,7 @@ def game_loop(mouse, grid, index, zoom, space):
         pygame.mouse.get_rel()
         clock.tick(60)  # allow 0.06 seconds to pass
 
+
 class Grid(object):
     """The Grid is basically the screen or UI"""
     def __init__(self, width=winWidth, height=winHeight, character=' '):
@@ -157,7 +175,6 @@ class Grid(object):
         "This wipes the screen, then fills in anything from that part of outerSpace"
         intdex = (int(round(index[0])), int(round(index[1])))
         #self.grid = [[character for x in xrange(winWidth*zoom)] for y in xrange(winHeight*zoom)] # blank slate
-        gameDisplay.fill(backgroundColor)                                              # ...on both screens
         gameDisplay.blit(background, (0, 0))
         window = filter(lambda coords: intdex[0]-2 <= coords[0] < (winWidth+20)*zoom + intdex[0] and intdex[1]-2 <= coords[1] < (winHeight+10)*zoom + intdex[1], space.keys())
         for point in window:            # then get all the relevant points from space
@@ -175,9 +192,12 @@ class Grid(object):
         for station in nearby:
             for comp in station.components:
                 for equip in comp.equipment:
-                    gameDisplay.blit(pygame.transform.scale(drawnTiles[equip['type']], (equip['width']*zoom, equip['height']*zoom)), \
-                                                            (round((equip['eindex'][0] - index[0]) * zoom), \
-                                                             round((equip['eindex'][1] - index[1]) * zoom)))
+                    gameDisplay.blit(pygame.transform.scale(converter.pattern, (winWidth * zoom, winHeight * zoom)), (round((equip['eindex'][0] - index[0]) * zoom), \
+                                                        round((equip['eindex'][1] - index[1]) * zoom)), \
+                                     pygame.Rect(0, 0, equip['width'] * zoom, equip['height'] * zoom))
+                    # gameDisplay.blit(pygame.transform.scale(drawnTiles[equip['type']], (equip['width']*zoom, equip['height']*zoom)), \
+                    #                                         (round((equip['eindex'][0] - index[0]) * zoom), \
+                    #                                          round((equip['eindex'][1] - index[1]) * zoom)))
 
 
 """
@@ -295,10 +315,10 @@ def block_off(space, index, half_width, half_height):
     return blocks
 
 
-def season(flavor):
+def season(flavor):                                         # this boosts all existing flavors, adds some, and subtracts relative to total
     seasonings = 0
     for spice in flavor.keys():
-        seasonings += flavor[spice]
+        seasonings += max(0, flavor[spice])
     for spice in flavor.keys():
         flavor[spice] *= 2
         flavor[spice] += randint(0,30) - flavor[spice]/4
@@ -318,9 +338,9 @@ def flavor_subtract(base, subtraction):
 
 
 @check_return_not_none
-def flood(space, coords, target, replacement):
-    q = [coords]
-    if not is_character(space, coords, target):          # are we starting with the right character?
+def flood(space, coords, target, replacement):          # this floods contiguous target characters with a replacement character
+    q = [coords]                                        # turn our coords into a list of one set of coords, so we can do list stuff
+    if not is_character(space, coords, target):         # are we starting with the right character?
         return space
     while q:
         co = q.pop(0)
@@ -566,7 +586,6 @@ class Station(object):
             half_width  = randint(minCompWidth, maxCompWidth) / 2
             half_height = randint(minCompHeight, maxCompHeight) / 2
             crashcount += 1
-            print "Component placement attempt", crashcount                                                         ####
             if random() < bigCompFreq:          # maybe this is a super big component?
                 half_width  *= compMultiplier
                 half_height *= compMultiplier
@@ -579,12 +598,10 @@ class Station(object):
             if self.component_count > 0 and not doors:
                 print "No doors!  Time to stop."
                 break
-            print "Doors were whittled down from", doors                                                            ####
             realdoors = filter(lambda d: (d[0] == index[0] - 1 or d[0] == index[0] + cwidth) and \
                                          (index[1] <= d[1] <= index[1] + cheight - 1) or \
                                          (d[1] == index[1] - 1 or d[1] == index[1] + cheight) and \
                                          (index[0] <= d[0] <= index[0] + cwidth - 1), doors)
-            print "to", realdoors
             print "Should this component form?  So far we have", self.component_count                               ####
             if is_area(self.space, (index[0] - 1, index[1] - 1), cwidth + 2, cheight + 2) and not (self.component_count > 0 and not realdoors): # not blocked? still doors left?
                 if random() < compFreq or self.component_count == 0:
@@ -689,10 +706,10 @@ class Component(object):
                         if len(deadends) == 0:
                             break
 
-    def place_equipment(self):
+    def place_equipment(self):                              # this picks equipment based on the flavor, keeping track of what's already there
         seasonings = 0
         for spice in self.flavor.keys():
-            seasonings += self.flavor[spice]                        # add up all the flavor in this component
+            seasonings += max(0, self.flavor[spice])                        # add up all the flavor in this component
         if not seasonings:
             print "no flavor for equipment!"    ####
         else:
@@ -703,12 +720,12 @@ class Component(object):
                 flavs = self.flavor.keys()
                 while seas > 0 and attempts < 100:                                 # pick a piece of equipment to place in each block
                     flav = flavs.pop()
-                    seas -= self.flavor[flav]                   # pick a flavor from self.flavor
+                    seas -= max(0, self.flavor[flav])                   # pick a flavor from self.flavor
                     attempts += 1
                 print "Tried", attempts, "different flavors, and have", seas, "seasoning left."            ####
                 if equipmentFlavors[flav].keys():               # if this flavor even has any equipment to its name (remove this later?)
                     equip = equipmentFlavors[flav].keys()[randint(0,len(equipmentFlavors[flav].keys())-1)]
-                    self.equipment.append({'eindex': block[0], 'width': block[1], 'height': block[2], 'type': equip, 'inv': equipmentLoot[equip]})
+                    self.equipment.append({'eindex': block[0], 'width': block[1], 'height': block[2], 'type': equip, 'flavor': flav, 'inv': equipmentLoot[equip]})
                     print "Added new equipment", self.equipment[-1]
                     self.flavored[flav] += equipmentFlavors[flav][equip] * block[1] * block[2]        # add tile flavor * area to self.flavored
 
@@ -721,7 +738,7 @@ class Component(object):
         self.nsprob = nsprob
         self.ewprob = ewprob
         self.station = station
-        self.equipment = []                 # equipment is a list of dicts including 'eindex', 'width', 'height', 'type': 'generator', and inv: []
+        self.equipment = []                 # equipment is a list of dicts including 'eindex', 'width', 'height', 'type', 'flavor', and 'inv': []
         self.half_width = half_width
         self.half_height = half_height
         self.width = 2 * half_width + 1
@@ -918,7 +935,6 @@ class NSComponent(Component):
         self.spawn_nscorridors(space, cradix, half_width, half_height, flavor, nsprob, ewprob)
         link_corridors(space, self.index, self.width, self.height, self.doors)
         space = self.place_equipment()
-        print self.equipment                                                                                           ####
 
 class WEComponent(Component):
 
@@ -1107,7 +1123,6 @@ class WEComponent(Component):
         self.spawn_wecorridors(space, cradix, half_width, half_height, flavor, nsprob, ewprob)
         link_corridors(space, self.index, self.width, self.height, self.doors)
         space = self.place_equipment()
-        print self.equipment                                                                                           ####
 
 grid = Grid(winWidth, winHeight)      # okay, make a blank ASCII matrix
 gameDisplay.fill(backgroundColor)     # and a blank image window
@@ -1120,6 +1135,6 @@ game_loop(mouse, grid, wIndex, winZoom, outerSpace)  # run the game until the us
 pygame.quit()  # if by some miracle you get here without that happening, quit immediately omg
 quit()
 
-#Do:  Fix equipment placement - Blocks on blocks on blocks on empty space?  seed 425 Photoshop some actual equipment?  Back up this shit!  Make controls!
+#Do:  Add more equipment! (equipmentFlavors, Loot, what else?)  Photoshop some actual equipment?  Make UI/controls!
 
-# What other flavors?  Armory?  Science?  Weapons?
+# What other flavors?  Armory?  Science?  Propulsion?
