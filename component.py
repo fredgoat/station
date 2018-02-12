@@ -6,7 +6,7 @@ Each station is an object with a list of components
 each component is an object with a radix, dimensions, doors, flavor, and equipment
 radix is a tuple, dimensions are two numbers, doors is a list of tuples,
 flavor is a dict of numbers for each flavor, i.e. {'med': 5, 'sci': 2}
-equipment is a list of dicts including index, dimensions, type, and inventory
+equipment is a list of dicts including index, dimensions, type, flavor, and inventory
 
 Index = upper left point.  Extremity = lower right.  Coordinate = that point.  Radix = spawn root point.
 """
@@ -45,9 +45,9 @@ noFlavor = {'power':0, 'cargo':0, 'quarters':0, 'life support':0, 'medical':0, '
                  'command':0, 'reclamation':0, 'fabrication':0}
 defaultFlavor = {'power':200, 'cargo':10, 'quarters':0, 'life support':10, 'medical':0, 'hydroponics':0, \
                  'command':0, 'reclamation':0, 'fabrication':0}
-equipmentFlavors = {'power':{'converter':1}, 'cargo':{}, 'quarters':{}, 'life support':{}, 'medical':{}, 'hydroponics':{}, \
-                 'command':{}, 'reclamation':{}, 'fabrication':{}}        # this is each flavor's equipment value per tile
-equipmentLoot = {'converter': []}
+equipmentFlavors = {'power':{}, 'cargo':{}, 'quarters':{}, 'life support':{}, 'medical':{}, 'hydroponics':{}, \
+                 'command':{}, 'reclamation':{}, 'fabrication':{}}        # this is each flavor's equipment value per tile, and a pointer to that equipment
+equipmentLoot = {'converter': [], 'battery': []}
 
 stations = []
 outerSpace = {}
@@ -72,7 +72,6 @@ defaultTile = pygame.image.load('default tile.bmp').convert()           # these 
 corridorTile = pygame.image.load('corridor tile.bmp').convert()         # later if I have sprites I can set_colorkey((255,255,255)) to make the white parts transparent
 airlockTile = pygame.image.load('airlock tile.bmp').convert()
 defaultPattern = pygame.Surface((winWidth * winZoom, winHeight * winZoom))
-converterTile = pygame.image.load('converter tile.bmp').convert()
 
 
 def patterner(background, tile, size):                      # this draws a repeating pattern out of tile images
@@ -84,12 +83,19 @@ def patterner(background, tile, size):                      # this draws a repea
     return background
 
 class Tile(object):
-    def __init__(self, tile, size):
-        self.pattern = patterner(defaultPattern.copy(), pygame.transform.scale(tile, size), size)
+    def __init__(self, name, image, size, flavors):
+        self.name = name
+        self.tile = pygame.image.load(image).convert()
+        self.pattern = patterner(defaultPattern.copy(), pygame.transform.scale(self.tile, size), size)
+        self.flavors = flavors
+        for flavor in flavors.keys():                                       # look at your flavors, and in equipmentFlavor
+            equipmentFlavors[flavor][name] = (self, flavors[flavor])        # add a tuple of (a pointer back to yourself, and your flavor strength)
 
-converter = Tile(converterTile, (30,30))
 
-drawnTiles = {'#': defaultTile, 'C': corridorTile, 'A': airlockTile, 'converter': converterTile}
+converter = Tile('converter', 'converter tile.bmp', (30,30), {'power':5})
+battery = Tile('battery', 'battery tile.bmp', (30,30), {'power':1})
+
+drawnTiles = {'#': defaultTile, 'C': corridorTile, 'A': airlockTile}
 
 def check_return_not_none(func):
     """A decorator for checking that a function is not returning None.
@@ -145,80 +151,25 @@ def game_loop(mouse, grid, index, zoom, space):
 
 class Grid(object):
     """The Grid is basically the screen or UI"""
-    def __init__(self, width=winWidth, height=winHeight, character=' '):
+    def __init__(self):
         pass
-        #self.grid = [[character for x in xrange(width)] for y in xrange(height)]
-
-    """
-    def ischar(self, coords, character=' '):
-        x, y = coords
-        line = self.grid[y]
-        if y < 0:                       # is this in the grid?
-            return False
-        if x < 0:
-            return False
-        if y >= len(self.grid):
-            return False
-        if x >= len(line):
-            return False
-        if line[x] == character:        # is it the thing?
-            return True
-        else:
-            return False """
-
-    """
-    def placechar(self, coords, character):
-        x, y = coords
-        self.grid[y][x] = character """
 
     def update(self, index, zoom, space, character=' '):
         "This wipes the screen, then fills in anything from that part of outerSpace"
         intdex = (int(round(index[0])), int(round(index[1])))
-        #self.grid = [[character for x in xrange(winWidth*zoom)] for y in xrange(winHeight*zoom)] # blank slate
         gameDisplay.blit(background, (0, 0))
         window = filter(lambda coords: intdex[0]-2 <= coords[0] < (winWidth+20)*zoom + intdex[0] and intdex[1]-2 <= coords[1] < (winHeight+10)*zoom + intdex[1], space.keys())
         for point in window:            # then get all the relevant points from space
             m, n = point
-            #self.grid[n - intdex[1]][m - intdex[0]] = space[(m, n)]
-            # if space[(m, n)] == '#':            # draw the 10x10 tiles on the window, accounting for window index ... turn this into a function dict?
-            #     gameDisplay.blit(pygame.transform.scale(defaultTile,(zoom, zoom)), (round((m - index[0]) * zoom), round((n - index[1]) * zoom)))
-            # elif space[(m, n)] == 'C':
-            #     gameDisplay.blit(pygame.transform.scale(corridorTile,(zoom, zoom)), (round((m - index[0]) * zoom), round((n - index[1]) * zoom)))
-            # elif space[(m, n)] == 'A':
-            #     gameDisplay.blit(pygame.transform.scale(airlockTile,(zoom, zoom)), (round((m - index[0]) * zoom), round((n - index[1]) * zoom)))
             gameDisplay.blit(pygame.transform.scale(drawnTiles[space[m,n]],(zoom, zoom)), (round((m - index[0]) * zoom), round((n - index[1]) * zoom)))
         nearby = filter(lambda x: x.space == space and intdex[0]-50 < x.stradix[0] < intdex[0]+(winWidth+100)*zoom \
                         and intdex[1]-50 < x.stradix[1] < intdex[1]+(winHeight+100)*zoom, stations)
         for station in nearby:
             for comp in station.components:
                 for equip in comp.equipment:
-                    gameDisplay.blit(pygame.transform.scale(converter.pattern, (winWidth * zoom, winHeight * zoom)), (round((equip['eindex'][0] - index[0]) * zoom), \
-                                                        round((equip['eindex'][1] - index[1]) * zoom)), \
-                                     pygame.Rect(0, 0, equip['width'] * zoom, equip['height'] * zoom))
-                    # gameDisplay.blit(pygame.transform.scale(drawnTiles[equip['type']], (equip['width']*zoom, equip['height']*zoom)), \
-                    #                                         (round((equip['eindex'][0] - index[0]) * zoom), \
-                    #                                          round((equip['eindex'][1] - index[1]) * zoom)))
-
-
-"""
-   def border(self, border = 'X'):
-       for a in range(winWidth):
-           self.grid[0][a] = border
-           self.grid[winHeight - 1][a] = border
-       for b in range(winHeight):
-           self.grid[b][0] = border
-           self.grid[b][winWidth - 1] = border
-
-   def __repr__(self):                 # print it!
-       joined = ''
-       for y in self.grid:
-           line = ''
-           for x in y:
-               line += x
-               line += ' '
-           joined += line + '\n'
-       return joined
-"""
+                    gameDisplay.blit(pygame.transform.scale(equipmentFlavors[equip['flavor']][equip['type']][0].pattern, \
+                        (winWidth * zoom, winHeight * zoom)), (round((equip['eindex'][0] - index[0]) * zoom), \
+                        round((equip['eindex'][1] - index[1]) * zoom)), pygame.Rect(0, 0, equip['width'] * zoom, equip['height'] * zoom))
 
 
 def go(coords, direction):
@@ -727,7 +678,8 @@ class Component(object):
                     equip = equipmentFlavors[flav].keys()[randint(0,len(equipmentFlavors[flav].keys())-1)]
                     self.equipment.append({'eindex': block[0], 'width': block[1], 'height': block[2], 'type': equip, 'flavor': flav, 'inv': equipmentLoot[equip]})
                     print "Added new equipment", self.equipment[-1]
-                    self.flavored[flav] += equipmentFlavors[flav][equip] * block[1] * block[2]        # add tile flavor * area to self.flavored
+                    for f in equipmentFlavors[flav][equip][0].flavors.keys():                           # go through all flavors for that equipment, [equip][0] is the Tile object
+                        self.flavored[f] += equipmentFlavors[f][equip][1] * block[1] * block[2]         # add tile flavor * area to self.flavored
 
 
     def __init__(self, space, station, cradix, half_width, half_height, flavor, doors, nsprob, ewprob):
@@ -1124,7 +1076,7 @@ class WEComponent(Component):
         link_corridors(space, self.index, self.width, self.height, self.doors)
         space = self.place_equipment()
 
-grid = Grid(winWidth, winHeight)      # okay, make a blank ASCII matrix
+grid = Grid()
 gameDisplay.fill(backgroundColor)     # and a blank image window
 
 stations.append(Station(outerSpace, (0, 0, cardinals[randint(0, 3)]), defaultFlavor))  # (what region?, (origin x,origin y,from what direction?), what flavors?)
