@@ -47,7 +47,7 @@ compMultiplier = 2
 
 noFlavor = {'power':0, 'cargo':0, 'quarters':0, 'life support':0, 'medical':0, 'hydroponics':0, \
                  'command':0, 'reclamation':0, 'fabrication':0}
-defaultFlavor = {'power':100, 'cargo':10, 'quarters':0, 'life support':300, 'medical':0, 'hydroponics':0, \
+defaultFlavor = {'power':100, 'cargo':10, 'quarters':0, 'life support':200, 'medical':0, 'hydroponics':0, \
                  'command':0, 'reclamation':0, 'fabrication':0}
 equipmentFlavors = {'power':{}, 'cargo':{}, 'quarters':{}, 'life support':{}, 'medical':{}, 'hydroponics':{}, \
                  'command':{}, 'reclamation':{}, 'fabrication':{}}        # this is each flavor's equipment value per tile, and a pointer to that equipment
@@ -102,18 +102,18 @@ class Tile(object):
             equipmentFlavors[flavor][name] = (self, flavors[flavor])        # add a tuple of (a pointer back to yourself, and your flavor strength)
 
 
-converter = Tile('converter', 'converter tile.bmp', (30,30), {'power':5})               # power/voltage converters
+converter = Tile('converter', 'converter tile.bmp', (30,30), {'power':1})               # power/voltage converters
 battery = Tile('battery', 'battery tile.bmp', (30,30), {'power':1})                     # NiH2 battery
-thermoregulator = Tile('thermoregulator', 'thermoregulator tile.bmp', (30,30), {'life support':1})
+thermoregulator = Tile('thermoregulator', 'thermoregulator tile.bmp', (30,30), {'life support':20})
 recycler = Tile('recycler', 'recycler tile.bmp', (30,30), {'life support':1})           # atmospheric/oxygen recycler
 pressurizer = Tile('pressurizer', 'pressurizer tile.bmp', (30,30), {'life support':2})    # pressure control
-suppressor = Tile('suppressor', 'converter tile.bmp', (30,30), {'life support':5})      # fire suppression system
-dehumidifier = Tile('dehumidifier', 'converter tile.bmp', (30,30), {'life support':10})
-infirmary = Tile('infirmary', 'converter tile.bmp', (30,30), {'medical':10})
-medstation = Tile('medstation', 'converter tile.bmp', (30,30), {'medical':1})
-farm = Tile('farm', 'converter tile.bmp', (30,30), {'hydroponics':5})               # algae farm
-box = Tile('box', 'converter tile.bmp', (30,30), {'hydroponics':20})                # grow box
-purifier = Tile('purifier', 'converter tile.bmp', (30,30), {'hydroponics':1})       # water purifier
+suppressor = Tile('suppressor', 'suppressor tile.bmp', (30,30), {'life support':50})      # fire suppression system
+dehumidifier = Tile('dehumidifier', 'dehumidifier tile.bmp', (10,10), {'life support':80})
+infirmary = Tile('infirmary', 'infirmary tile.bmp', (30,30), {'medical':50})
+medstation = Tile('medstation', 'medstation tile.bmp', (10,10), {'medical':200})
+farm = Tile('farm', 'converter tile.bmp', (30,30), {'hydroponics':10})               # algae farm
+box = Tile('box', 'converter tile.bmp', (30,30), {'hydroponics':30})                # grow box
+purifier = Tile('purifier', 'converter tile.bmp', (30,30), {'hydroponics':3})       # water purifier
 extruder = Tile('extruder', 'converter tile.bmp', (30,30), {'fabrication':5})       # wire extruder
 fabricator = Tile('fabricator', 'converter tile.bmp', (30,30), {'fabrication':2})   # component fabricator
 assembler = Tile('assembler', 'converter tile.bmp', (30,30), {'fabrication':1})     # circuit assembler
@@ -197,8 +197,8 @@ class Grid(object):
         for point in window:            # then get all the relevant points from space
             m, n = point
             gameDisplay.blit(pygame.transform.scale(drawnTiles[space[m,n]],(zoom, zoom)), (round((m - index[0]) * zoom), round((n - index[1]) * zoom)))
-        nearby = filter(lambda x: x.space == space and intdex[0]-50 < x.stradix[0] < intdex[0]+(winWidth+100)*zoom \
-                        and intdex[1]-50 < x.stradix[1] < intdex[1]+(winHeight+100)*zoom, stations)
+        nearby = filter(lambda x: x.space == space and intdex[0]-500 < x.stradix[0] < intdex[0]+(winWidth+1000)*zoom \
+                        and intdex[1]-500 < x.stradix[1] < intdex[1]+(winHeight+1000)*zoom, stations)
         for station in nearby:
             gameDisplay.blit(pygame.transform.scale(station.image, (station.width*zoom, station.height*zoom)), \
                              (round((station.index[0] - index[0]) * zoom), round((station.index[1] - index[1]) * zoom)))
@@ -265,7 +265,7 @@ def block_off(space, index, half_width, half_height):
     height = 2 * half_height + 1
     blocks = []                     # these will be tuples of (index, width, height) in which equipment can be placed
     attempts = 0
-    while attempts < 100 and is_any(space, index, width, height, '#'):      # while there's any '#' left
+    while attempts < 1000 and is_any(space, index, width, height, '#'):      # while there's any '#' left
         attempts += 1
         spot = (index[0] + randint(0,width-1), index[1] + randint(0,height-1))      # pick a random spot
         if is_character(space, spot, '#'):                                              # and if it's got a '#'
@@ -746,15 +746,24 @@ class Component(object):
                 flavs = self.flavor.keys()
                 while seas > 0 and attempts < 100:                                 # pick a piece of equipment to place in each block
                     flav = flavs.pop()
-                    seas -= max(0, self.flavor[flav])                   # pick a flavor from self.flavor
+                    seas -= max(0, self.flavor[flav])                   # pick a flavor from self.flavor, jenga style
                     attempts += 1
-                print "Tried", attempts, "different flavors, and have", seas, "seasoning left."            ####
-                if equipmentFlavors[flav].keys():               # if this flavor even has any equipment to its name (remove this later?)
-                    equip = equipmentFlavors[flav].keys()[randint(0,len(equipmentFlavors[flav].keys())-1)]
+                attempts = 0
+                while attempts < 100:
+                    attempts += 1
+                    equip = equipmentFlavors[flav].keys()[randint(0,len(equipmentFlavors[flav].keys())-1)]      # pick 'generator' or something
+                    burden = equipmentFlavors[flav][equip][1] * block[1] * block[2]                             # how much flavor would that size generator have?
+                    if burden < self.flavor[flav]/3:                                                            # is it less than half of what we got?
+                        self.equipment.append({'eindex': block[0], 'width': block[1], 'height': block[2], 'type': equip, 'flavor': flav, 'inv': equipmentLoot[equip]})
+                        for f in equipmentFlavors[flav][equip][0].flavors.keys():                           # go through all flavors for that equipment, [equip][0] is the Tile object
+                            self.flavored[f] += equipmentFlavors[f][equip][1] * block[1] * block[2]         # add tile flavor * area to self.flavor/ed
+                        break
+                if attempts >= 100:
+                    equip = equipmentFlavors[flav].keys()[randint(0,len(equipmentFlavors[flav].keys())-1)]      # whatever, fine, just place it
                     self.equipment.append({'eindex': block[0], 'width': block[1], 'height': block[2], 'type': equip, 'flavor': flav, 'inv': equipmentLoot[equip]})
-                    print "Added new equipment", self.equipment[-1]
-                    for f in equipmentFlavors[flav][equip][0].flavors.keys():                           # go through all flavors for that equipment, [equip][0] is the Tile object
-                        self.flavored[f] += equipmentFlavors[f][equip][1] * block[1] * block[2]         # add tile flavor * area to self.flavored
+                    for f in equipmentFlavors[flav][equip][0].flavors.keys():
+                        self.flavored[f] += equipmentFlavors[f][equip][1] * block[1] * block[2]
+
 
 
     def __init__(self, space, station, cradix, half_width, half_height, flavor, doors, nsprob, ewprob):
@@ -1170,6 +1179,6 @@ game_loop(mouse, grid, wIndex, winZoom, outerSpace)  # run the game until the us
 pygame.quit()  # if by some miracle you get here without that happening, quit immediately omg
 quit()
 
-#Do:  Add more equipment! (equipmentFlavors, Loot, what else?)  Photoshop more?  Make UI/controls!
+#Do:  Add more equipment! (Loot, what else?)  Make UI/controls/people/equipment rules!
 
 # What other flavors?  Armory?  Science?  Propulsion?  Good seed 276
