@@ -29,11 +29,15 @@ super_seed = randint(1,1000)
 print "This seed is", super_seed
 seed(super_seed)    # this will let you go back to good randomnesses
 
+winLocX = 8
+winLocY = 30
+import os
+os.environ['SDL_VIDEO_WINDOW_POS'] = "%d,%d" % (winLocX, winLocY)
 import pygame
 pygame.init()
 
-branchPersistence = 0.8     # corridor branches persist (or die) by a power of this
-compFreq         = 0.8     # probability that a door will actually spawn a component, rather than become exterior
+branchPersistence = 0.9     # corridor branches persist (or die) by a power of this
+compFreq         = 0.9     # probability that a door will actually spawn a component, rather than become exterior
 minCompHeight   = 4       # component dimensions
 minCompWidth    = 4
 maxCompHeight   = 10
@@ -43,24 +47,29 @@ compMultiplier = 2
 
 noFlavor = {'power':0, 'cargo':0, 'quarters':0, 'life support':0, 'medical':0, 'hydroponics':0, \
                  'command':0, 'reclamation':0, 'fabrication':0}
-defaultFlavor = {'power':200, 'cargo':10, 'quarters':0, 'life support':10, 'medical':0, 'hydroponics':0, \
+defaultFlavor = {'power':100, 'cargo':10, 'quarters':0, 'life support':300, 'medical':0, 'hydroponics':0, \
                  'command':0, 'reclamation':0, 'fabrication':0}
 equipmentFlavors = {'power':{}, 'cargo':{}, 'quarters':{}, 'life support':{}, 'medical':{}, 'hydroponics':{}, \
                  'command':{}, 'reclamation':{}, 'fabrication':{}}        # this is each flavor's equipment value per tile, and a pointer to that equipment
-equipmentLoot = {'converter': [], 'battery': []}
+equipmentLoot = {'converter': [], 'battery': [], 'thermoregulator': [], 'recycler':[], 'suppressor':[], 'pressurizer':[], \
+                 'dehumidifier':[], 'infirmary':[], 'medstation':[], 'farm':[], 'box':[], 'purifier':[], 'extruder':[], \
+                 'fabricator':[], 'assembler':[], 'furnace':[], 'mold':[], 'electrolyzer':[], 'hold':[], 'locker':[], \
+                  'cabin':[], 'dormitory':[], 'refectory':[], 'sensors':[], 'comms':[], 'bridge':[]}
 
 stations = []
 outerSpace = {}
 cardinals = ['n', 'e', 's', 'w']
 
-winWidth        = 120      # window dimensions measured in tiles
-winHeight       = 60
-wIndex = (float(winWidth) / -2, float(winHeight) / -2)        # this is the upper left corner of a screen centered on (0,0)
+displayInfo = pygame.display.Info()
 winZoom         = 10      # how many pixels per tile
-maxZoom         = 20
+maxZoom         = 50
 minZoom         = 3
+winWidth        = int(displayInfo.current_w/winZoom)-1      # window dimensions measured in tiles
+winHeight       = int(displayInfo.current_h/winZoom)-7
+wIndex = (float(winWidth) / -2, float(winHeight) / -2)        # this is the upper left corner of a screen centered on (0,0)
 
 clock = pygame.time.Clock()
+clock.tick(240)
 mouse = {'pos':(0,0), 1:0, 2:0, 3:0, 4:0, 5:0, 6:0} # {position, button 1, button 2, etc}
 pygame.event.set_allowed([pygame.QUIT, pygame.KEYDOWN, pygame.KEYUP, pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP, pygame.MOUSEMOTION])
 
@@ -68,6 +77,7 @@ gameDisplay = pygame.display.set_mode((winWidth * winZoom, winHeight * winZoom))
 pygame.display.set_caption('Space Station')
 backgroundColor = (0, 0, 0)
 background = pygame.image.load('background.bmp').convert()
+blankTile = pygame.image.load('blank tile.png')
 defaultTile = pygame.image.load('default tile.bmp').convert()           # these are now Surfaces, and converted to a nice /pixel/ format
 corridorTile = pygame.image.load('corridor tile.bmp').convert()         # later if I have sprites I can set_colorkey((255,255,255)) to make the white parts transparent
 airlockTile = pygame.image.load('airlock tile.bmp').convert()
@@ -92,10 +102,35 @@ class Tile(object):
             equipmentFlavors[flavor][name] = (self, flavors[flavor])        # add a tuple of (a pointer back to yourself, and your flavor strength)
 
 
-converter = Tile('converter', 'converter tile.bmp', (30,30), {'power':5})
-battery = Tile('battery', 'battery tile.bmp', (30,30), {'power':1})
+converter = Tile('converter', 'converter tile.bmp', (30,30), {'power':5})               # power/voltage converters
+battery = Tile('battery', 'battery tile.bmp', (30,30), {'power':1})                     # NiH2 battery
+thermoregulator = Tile('thermoregulator', 'thermoregulator tile.bmp', (30,30), {'life support':1})
+recycler = Tile('recycler', 'recycler tile.bmp', (30,30), {'life support':1})           # atmospheric/oxygen recycler
+pressurizer = Tile('pressurizer', 'pressurizer tile.bmp', (30,30), {'life support':2})    # pressure control
+suppressor = Tile('suppressor', 'converter tile.bmp', (30,30), {'life support':5})      # fire suppression system
+dehumidifier = Tile('dehumidifier', 'converter tile.bmp', (30,30), {'life support':10})
+infirmary = Tile('infirmary', 'converter tile.bmp', (30,30), {'medical':10})
+medstation = Tile('medstation', 'converter tile.bmp', (30,30), {'medical':1})
+farm = Tile('farm', 'converter tile.bmp', (30,30), {'hydroponics':5})               # algae farm
+box = Tile('box', 'converter tile.bmp', (30,30), {'hydroponics':20})                # grow box
+purifier = Tile('purifier', 'converter tile.bmp', (30,30), {'hydroponics':1})       # water purifier
+extruder = Tile('extruder', 'converter tile.bmp', (30,30), {'fabrication':5})       # wire extruder
+fabricator = Tile('fabricator', 'converter tile.bmp', (30,30), {'fabrication':2})   # component fabricator
+assembler = Tile('assembler', 'converter tile.bmp', (30,30), {'fabrication':1})     # circuit assembler
+furnace = Tile('furnace', 'converter tile.bmp', (30,30), {'reclamation':1})         # metal/silica furnace
+mold = Tile('mold', 'converter tile.bmp', (30,30), {'reclamation':1})               # plastic mold
+electrolyzer = Tile('electrolyzer', 'converter tile.bmp', (30,30), {'reclamation':2})
+hold = Tile('hold', 'converter tile.bmp', (30,30), {'cargo':1})
+locker = Tile('locker', 'converter tile.bmp', (30,30), {'cargo':5})
+cabin = Tile('cabin', 'converter tile.bmp', (30,30), {'quarters':10})               # boss's cabin
+dormitory = Tile('dormitory', 'converter tile.bmp', (30,30), {'quarters':1})
+refectory = Tile('refectory', 'converter tile.bmp', (30,30), {'quarters':5})
+sensors = Tile('sensors', 'converter tile.bmp', (30,30), {'command':2})
+comms = Tile('comms', 'converter tile.bmp', (30,30), {'command':1})
+bridge = Tile('bridge', 'converter tile.bmp', (30,30), {'command':10})
 
-drawnTiles = {'#': defaultTile, 'C': corridorTile, 'A': airlockTile}
+
+drawnTiles = {'#': defaultTile, 'C': corridorTile}
 
 def check_return_not_none(func):
     """A decorator for checking that a function is not returning None.
@@ -134,19 +169,19 @@ def game_loop(mouse, grid, index, zoom, space):
                     index = (index[0] - min(max(float(x) / zoom, -10), 10), index[1] - min(max(float(y) / zoom, -10), 10))
                     grid.update(index, zoom, space)
                 elif mouse[4] and zoom > minZoom:
-                    index = (index[0]+winWidth*6/zoom, index[1]+winWidth*4/zoom)        # move the index toward the center
-                    zoom -= zoom/5 + (zoom % 5 > 0)                                     # zoom out
-                    index = (index[0]-winWidth*6/zoom, index[1]-winWidth*4/zoom)        # move the index back, net positive x and y change
+                    index = (index[0]+winWidth*5/zoom, index[1]+winHeight*5/zoom)       # move the index toward the center
+                    zoom -= zoom/7 + (zoom % 7 > 0)                                     # zoom out (zoom % 5 > 0 gives True or False.  True adds as 1)
+                    index = (index[0]-winWidth*5/zoom, index[1]-winHeight*5/zoom)       # move the index back, net positive x and y change
                     grid.update(index, zoom, space)
                 elif mouse[5] and zoom < maxZoom:
-                    index = (index[0]+winHeight*10/zoom, index[1]+winHeight*10/zoom)
-                    zoom = min(maxZoom, zoom + zoom/5 + (zoom % 5 > 0))
-                    index = (index[0]-winHeight*10/zoom, index[1]-winHeight*10/zoom)
+                    index = (index[0]+winWidth*5/zoom, index[1]+winHeight*5/zoom)
+                    zoom = min(maxZoom, zoom + zoom/7 + (zoom % 7 > 0))
+                    index = (index[0]-winWidth*5/zoom, index[1]-winHeight*5/zoom)
                     grid.update(index, zoom, space)
 
         pygame.display.update()  # redraw everything
-        pygame.mouse.get_rel()
-        clock.tick(60)  # allow 0.06 seconds to pass
+        pygame.mouse.get_rel()      # mark this moment to measure mouse movement from (dump relative movement up to this point)
+        clock.tick(120)  # allow 0.12 seconds to pass
 
 
 class Grid(object):
@@ -154,7 +189,7 @@ class Grid(object):
     def __init__(self):
         pass
 
-    def update(self, index, zoom, space, character=' '):
+    def update(self, index, zoom, space):
         "This wipes the screen, then fills in anything from that part of outerSpace"
         intdex = (int(round(index[0])), int(round(index[1])))
         gameDisplay.blit(background, (0, 0))
@@ -165,11 +200,8 @@ class Grid(object):
         nearby = filter(lambda x: x.space == space and intdex[0]-50 < x.stradix[0] < intdex[0]+(winWidth+100)*zoom \
                         and intdex[1]-50 < x.stradix[1] < intdex[1]+(winHeight+100)*zoom, stations)
         for station in nearby:
-            for comp in station.components:
-                for equip in comp.equipment:
-                    gameDisplay.blit(pygame.transform.scale(equipmentFlavors[equip['flavor']][equip['type']][0].pattern, \
-                        (winWidth * zoom, winHeight * zoom)), (round((equip['eindex'][0] - index[0]) * zoom), \
-                        round((equip['eindex'][1] - index[1]) * zoom)), pygame.Rect(0, 0, equip['width'] * zoom, equip['height'] * zoom))
+            gameDisplay.blit(pygame.transform.scale(station.image, (station.width*zoom, station.height*zoom)), \
+                             (round((station.index[0] - index[0]) * zoom), round((station.index[1] - index[1]) * zoom)))
 
 
 def go(coords, direction):
@@ -269,7 +301,7 @@ def block_off(space, index, half_width, half_height):
 def season(flavor):                                         # this boosts all existing flavors, adds some, and subtracts relative to total
     seasonings = 0
     for spice in flavor.keys():
-        seasonings += max(0, flavor[spice])
+        seasonings += max(0, flavor[spice])                 # add up all the seasonings
     for spice in flavor.keys():
         flavor[spice] *= 2
         flavor[spice] += randint(0,30) - flavor[spice]/4
@@ -557,8 +589,6 @@ class Station(object):
             if is_area(self.space, (index[0] - 1, index[1] - 1), cwidth + 2, cheight + 2) and not (self.component_count > 0 and not realdoors): # not blocked? still doors left?
                 if random() < compFreq or self.component_count == 0:
                     self.component_count += 1
-                    #for door in doors:
-                    #    self.space[door] = 'A'
                     doors = realdoors
                     if cradix[2] == 'n' or cradix[2] == 's':
                         self.components.append(NSComponent(self.space, self, cradix, half_width, half_height, flavor, doors, nsprob, ewprob))
@@ -566,14 +596,46 @@ class Station(object):
                         self.components.append(WEComponent(self.space, self, cradix, half_width, half_height, flavor, doors, nsprob, ewprob))
                 break
 
+    def update_image(self):
+        for comp in self.components:
+            for equip in comp.equipment:
+                eindex = (round((equip['eindex'][0] - self.index[0]) * winZoom), round((equip['eindex'][1] - self.index[1]) * winZoom))
+                self.image.blit(pygame.transform.scale(equipmentFlavors[equip['flavor']][equip['type']][0].pattern, \
+                    (winWidth * winZoom, winHeight * winZoom)), eindex, (0, 0, equip['width'] * winZoom, equip['height'] * winZoom))
+        for door in self.doors:
+            coords = (round((door[0] - self.index[0]) * winZoom), round((door[1] - self.index[1]) * winZoom))
+            self.image.blit(pygame.transform.scale(airlockTile, (winZoom, winZoom)), coords)
+
+
+    def extent(self):
+        west, north, east, south = 0,0,0,0
+        for comp in self.components:
+            west = min(west, comp.index[0])
+            north = min(north, comp.index[1])
+            east = max(east, comp.index[0]+comp.width-1)
+            south = max(south, comp.index[1]+comp.height-1)
+            for door in comp.doors:
+                west = min(west, door[0])
+                north = min(north, door[1])
+                east = max(east, door[0])
+                south = max(south, door[1])
+        return (west, north, east, south)
+
+
     def __init__(self, space, stradix, flavor):
         self.space = space
         self.stradix = stradix
         self.flavor = season(flavor)
         self.components = []
         self.component_count = 0
-        self.spawn_component(self.stradix, self.flavor, [], random() * 0.4 + 0.4, random() * 0.4 + 0.4)     # ns and we probs are random between .4 and .8
-        pygame.display.update()
+        self.doors = []
+        self.spawn_component(self.stradix, self.flavor, [], (1-random()**2) * 0.75 + 0.2, (1-random()**2) * 0.75 + 0.2)     # ns and we probs are random between .2 and .95
+        self.width = self.extent()[2] - self.extent()[0] + 1
+        self.height = self.extent()[3] - self.extent()[1] + 1
+        self.index = (self.extent()[0], self.extent()[1])
+        self.image = pygame.transform.scale(blankTile.copy(), (self.width * winZoom, self.height * winZoom))       # create a blank backdrop
+        self.update_image()                                                                     # put stuff on it
+
 
 
 class Component(object):
@@ -656,6 +718,19 @@ class Component(object):
                                     break
                         if len(deadends) == 0:
                             break
+
+    def prune_doors(self, newdoors):
+        for newd in newdoors:               # label newdoors with an a and make sure none of them are adjacent to other doors
+            self.space[newd] = 'a'
+            if is_any(self.space, (newd[0]-1, newd[1]-1), 3, 3, 'A'):
+                del self.space[newd]
+                newdoors.remove(newd)
+            elif is_any(self.space, (newd[0]-1, newd[1]-1), 3, 1, 'a') or is_any(self.space, (newd[0]-1, newd[1]+1), 3, 1, 'a') \
+                    or is_character(self.space, (newd[0]-1, newd[1]), 'a') or is_character(self.space, (newd[0]+1, newd[1]), 'a'):
+                newdoors.remove(newd)
+                del self.space[newd]
+            else:
+                del self.space[newd]
 
     def place_equipment(self):                              # this picks equipment based on the flavor, keeping track of what's already there
         seasonings = 0
@@ -790,7 +865,9 @@ class NSComponent(Component):
             if crashcount == 100: print 'couldn\'t place any more e/w branches'  ####
         print 'deadends', deadends ####
         self.connect_deadends(deadends)                 # now let's connect some dead-ends
+        self.prune_doors(newdoors)
         if newdoors:
+            self.station.doors += newdoors
             self.doors += newdoors
             direc = ['w', 'e']
             if not filter(lambda coords: coords[0]==x-1,self.doors):          # any west doors?
@@ -803,8 +880,8 @@ class NSComponent(Component):
                 self.station.spawn_component((spawnx, self.index[1] + self.half_height, tion), \
                                              flavor_subtract(self.flavor, self.flavored), self.doors, \
                                              self.nsprob, branchPersistence * self.ewprob)
-        for door in self.doors:
-            self.space[door] = 'A'
+        # for door in self.doors:
+        #     self.space[door] = 'A'
         print 'doors:', self.doors ####
         for end in deadends:
             print 'deadends abandoned:', end ####
@@ -876,7 +953,9 @@ class NSComponent(Component):
                             newdoors.append((x+spot,y+cheight-cl-1))
                 else:
                     print "How did an nscorridor's cradix[2] become", cradix[2]                                     ####
+        self.prune_doors(newdoors)
         if newdoors:
+            self.station.doors += newdoors
             self.doors += newdoors
             self.station.spawn_component((cradix[0], cradix[1] + cheight + 1 if cradix[2] == 'n' else cradix[1] - cheight - 1, cradix[2]), \
                                          flavor_subtract(self.flavor, self.flavored), self.doors, nsprob * branchPersistence, ewprob)
@@ -977,7 +1056,9 @@ class WEComponent(Component):
             if crashcount == 100: print 'couldn\'t place any more e/w branches'  ####
         print 'deadends', deadends ####
         self.connect_deadends(deadends)                 # now let's connect some dead-ends
+        self.prune_doors(newdoors)
         if newdoors:
+            self.station.doors += newdoors
             self.doors += newdoors
             direc = ['n', 's']
             if not filter(lambda coords: coords[1]==y-1,self.doors):          # any north doors?
@@ -990,8 +1071,8 @@ class WEComponent(Component):
                 self.station.spawn_component((self.index[0] + self.half_width, spawny, tion), \
                                              flavor_subtract(self.flavor, self.flavored), self.doors, \
                                              self.nsprob * branchPersistence, self.ewprob)
-        for door in self.doors:
-            self.space[door] = 'A'
+        # for door in self.doors:
+        #     self.space[door] = 'A'
         print 'doors:', self.doors ####
         for end in deadends:
             print 'deadends abandoned:', end ####
@@ -1063,7 +1144,9 @@ class WEComponent(Component):
                             newdoors.append((x+cwidth-cl-1,y+spot))
                 else:
                     print "How did an ewcorridor's cradix[2] become", cradix[2]                                     ####
+        self.prune_doors(newdoors)
         if newdoors:
+            self.station.doors += newdoors
             self.doors += newdoors
             self.station.spawn_component((cradix[0] + cwidth + 1 if cradix[2] == 'w' else cradix[0] - cwidth - 1, cradix[1], cradix[2]), \
                                          flavor_subtract(self.flavor, self.flavored), self.doors, nsprob, ewprob * branchPersistence)
@@ -1089,4 +1172,4 @@ quit()
 
 #Do:  Add more equipment! (equipmentFlavors, Loot, what else?)  Photoshop more?  Make UI/controls!
 
-# What other flavors?  Armory?  Science?  Propulsion?
+# What other flavors?  Armory?  Science?  Propulsion?  Good seed 276
