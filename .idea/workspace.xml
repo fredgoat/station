@@ -2,10 +2,7 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="9f6ce3df-3b11-42de-a47f-6f1a43cc4122" name="Default" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
-      <change beforePath="$PROJECT_DIR$/component.py" afterPath="$PROJECT_DIR$/component.py" />
-      <change beforePath="$PROJECT_DIR$/reference tile.bmp" afterPath="$PROJECT_DIR$/reference tile.bmp" />
     </list>
     <ignored path="station.iws" />
     <ignored path=".idea/workspace.xml" />
@@ -430,7 +427,8 @@
     <MESSAGE value="Created and implemented tile patterns!  Maybe too much memory though?" />
     <MESSAGE value="Created and implemented tile patterning!" />
     <MESSAGE value="Created Tile objects which show what to draw and also store data such as flavor.  Changed equipmentFlavors to get defined by the Tile objects and then point back to the Tile objects.&#10;&#10;Added NiH2 batteries!" />
-    <option name="LAST_COMMIT_MESSAGE" value="Created Tile objects which show what to draw and also store data such as flavor.  Changed equipmentFlavors to get defined by the Tile objects and then point back to the Tile objects.&#10;&#10;Added NiH2 batteries!" />
+    <MESSAGE value="Created station images that equipment and airlocks get blitted onto, starting with a transparent png, and then the stations get blitted onto the screen along with corridors and empty tiles.  Maybe I'll put the latter two on the stations as well at some point :P&#10;&#10;Made zooming better!&#10;&#10;Created more equipment bitmaps!" />
+    <option name="LAST_COMMIT_MESSAGE" value="Created station images that equipment and airlocks get blitted onto, starting with a transparent png, and then the stations get blitted onto the screen along with corridors and empty tiles.  Maybe I'll put the latter two on the stations as well at some point :P&#10;&#10;Made zooming better!&#10;&#10;Created more equipment bitmaps!" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
