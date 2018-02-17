@@ -46,11 +46,11 @@ bigCompFreq     = 0.15    # how often are comps bigger than max & by what factor
 compMultiplier = 2
 
 noFlavor = {'power':0, 'cargo':0, 'quarters':0, 'life support':0, 'medical':0, 'hydroponics':0, \
-                 'command':0, 'reclamation':0, 'fabrication':0}
+                 'command':0, 'reclamation':0, 'manufacture':0}
 defaultFlavor = {'power':100, 'cargo':10, 'quarters':0, 'life support':200, 'medical':0, 'hydroponics':0, \
-                 'command':0, 'reclamation':0, 'fabrication':0}
+                 'command':0, 'reclamation':0, 'manufacture':0}
 equipmentFlavors = {'power':{}, 'cargo':{}, 'quarters':{}, 'life support':{}, 'medical':{}, 'hydroponics':{}, \
-                 'command':{}, 'reclamation':{}, 'fabrication':{}}        # this is each flavor's equipment value per tile, and a pointer to that equipment
+                 'command':{}, 'reclamation':{}, 'manufacture':{}}        # this is each flavor's equipment value per tile, and a pointer to that equipment
 equipmentLoot = {'converter': [], 'battery': [], 'thermoregulator': [], 'recycler':[], 'suppressor':[], 'pressurizer':[], \
                  'dehumidifier':[], 'infirmary':[], 'medstation':[], 'farm':[], 'box':[], 'purifier':[], 'extruder':[], \
                  'fabricator':[], 'assembler':[], 'furnace':[], 'mold':[], 'electrolyzer':[], 'hold':[], 'locker':[], \
@@ -108,15 +108,15 @@ thermoregulator = Tile('thermoregulator', 'thermoregulator tile.bmp', (30,30), {
 recycler = Tile('recycler', 'recycler tile.bmp', (30,30), {'life support':1})           # atmospheric/oxygen recycler
 pressurizer = Tile('pressurizer', 'pressurizer tile.bmp', (30,30), {'life support':2})    # pressure control
 suppressor = Tile('suppressor', 'suppressor tile.bmp', (30,30), {'life support':50})      # fire suppression system
-dehumidifier = Tile('dehumidifier', 'dehumidifier tile.bmp', (10,10), {'life support':80})
+dehumidifier = Tile('dehumidifier', 'dehumidifier tile.bmp', (10,10), {'life support':100})
 infirmary = Tile('infirmary', 'infirmary tile.bmp', (30,30), {'medical':50})
 medstation = Tile('medstation', 'medstation tile.bmp', (10,10), {'medical':200})
-farm = Tile('farm', 'converter tile.bmp', (30,30), {'hydroponics':10})               # algae farm
-box = Tile('box', 'converter tile.bmp', (30,30), {'hydroponics':30})                # grow box
-purifier = Tile('purifier', 'converter tile.bmp', (30,30), {'hydroponics':3})       # water purifier
-extruder = Tile('extruder', 'converter tile.bmp', (30,30), {'fabrication':5})       # wire extruder
-fabricator = Tile('fabricator', 'converter tile.bmp', (30,30), {'fabrication':2})   # component fabricator
-assembler = Tile('assembler', 'converter tile.bmp', (30,30), {'fabrication':1})     # circuit assembler
+farm = Tile('farm', 'farm tile.bmp', (30,30), {'hydroponics':10})               # algae farm
+box = Tile('box', 'box tile.bmp', (10,10), {'hydroponics':60})                # grow box
+purifier = Tile('purifier', 'purifier tile.bmp', (30,30), {'hydroponics':3})       # water purifier
+extruder = Tile('extruder', 'extruder tile.bmp', (30,30), {'manufacture':5})       # wire extruder
+fabricator = Tile('fabricator', 'fabricator tile.bmp', (30,30), {'manufacture':2})   # component fabricator
+assembler = Tile('assembler', 'assembler tile.bmp', (30,30), {'manufacture':1})     # circuit assembler
 furnace = Tile('furnace', 'converter tile.bmp', (30,30), {'reclamation':1})         # metal/silica furnace
 mold = Tile('mold', 'converter tile.bmp', (30,30), {'reclamation':1})               # plastic mold
 electrolyzer = Tile('electrolyzer', 'converter tile.bmp', (30,30), {'reclamation':2})
@@ -749,21 +749,20 @@ class Component(object):
                     seas -= max(0, self.flavor[flav])                   # pick a flavor from self.flavor, jenga style
                     attempts += 1
                 attempts = 0
-                while attempts < 100:
+                while attempts < 20:
                     attempts += 1
                     equip = equipmentFlavors[flav].keys()[randint(0,len(equipmentFlavors[flav].keys())-1)]      # pick 'generator' or something
                     burden = equipmentFlavors[flav][equip][1] * block[1] * block[2]                             # how much flavor would that size generator have?
-                    if burden < self.flavor[flav]/3:                                                            # is it less than half of what we got?
+                    if self.flavor[flav]/6 < burden < self.flavor[flav]/3:                                      # is it a reasonable amount of flavor?
                         self.equipment.append({'eindex': block[0], 'width': block[1], 'height': block[2], 'type': equip, 'flavor': flav, 'inv': equipmentLoot[equip]})
                         for f in equipmentFlavors[flav][equip][0].flavors.keys():                           # go through all flavors for that equipment, [equip][0] is the Tile object
                             self.flavored[f] += equipmentFlavors[f][equip][1] * block[1] * block[2]         # add tile flavor * area to self.flavor/ed
                         break
-                if attempts >= 100:
+                if attempts >= 20:
                     equip = equipmentFlavors[flav].keys()[randint(0,len(equipmentFlavors[flav].keys())-1)]      # whatever, fine, just place it
                     self.equipment.append({'eindex': block[0], 'width': block[1], 'height': block[2], 'type': equip, 'flavor': flav, 'inv': equipmentLoot[equip]})
                     for f in equipmentFlavors[flav][equip][0].flavors.keys():
                         self.flavored[f] += equipmentFlavors[f][equip][1] * block[1] * block[2]
-
 
 
     def __init__(self, space, station, cradix, half_width, half_height, flavor, doors, nsprob, ewprob):
@@ -872,7 +871,6 @@ class NSComponent(Component):
                             m += 1
                         branches -= 1
             if crashcount == 100: print 'couldn\'t place any more e/w branches'  ####
-        print 'deadends', deadends ####
         self.connect_deadends(deadends)                 # now let's connect some dead-ends
         self.prune_doors(newdoors)
         if newdoors:
@@ -889,11 +887,7 @@ class NSComponent(Component):
                 self.station.spawn_component((spawnx, self.index[1] + self.half_height, tion), \
                                              flavor_subtract(self.flavor, self.flavored), self.doors, \
                                              self.nsprob, branchPersistence * self.ewprob)
-        # for door in self.doors:
-        #     self.space[door] = 'A'
-        print 'doors:', self.doors ####
         for end in deadends:
-            print 'deadends abandoned:', end ####
             self.space[end] = 'C'
 
     def spawn_nscorridors(self, space, cradix, half_width, half_height, flavor, nsprob, ewprob):
@@ -960,8 +954,6 @@ class NSComponent(Component):
                             deadends.append((x+spot,y+cheight-cl))
                         else:
                             newdoors.append((x+spot,y+cheight-cl-1))
-                else:
-                    print "How did an nscorridor's cradix[2] become", cradix[2]                                     ####
         self.prune_doors(newdoors)
         if newdoors:
             self.station.doors += newdoors
@@ -1063,7 +1055,6 @@ class WEComponent(Component):
                             n += 1
                         branches -= 1
             if crashcount == 100: print 'couldn\'t place any more e/w branches'  ####
-        print 'deadends', deadends ####
         self.connect_deadends(deadends)                 # now let's connect some dead-ends
         self.prune_doors(newdoors)
         if newdoors:
@@ -1080,11 +1071,7 @@ class WEComponent(Component):
                 self.station.spawn_component((self.index[0] + self.half_width, spawny, tion), \
                                              flavor_subtract(self.flavor, self.flavored), self.doors, \
                                              self.nsprob * branchPersistence, self.ewprob)
-        # for door in self.doors:
-        #     self.space[door] = 'A'
-        print 'doors:', self.doors ####
         for end in deadends:
-            print 'deadends abandoned:', end ####
             self.space[end] = 'C'
 
     def spawn_wecorridors(self, space, cradix, half_width, half_height, flavor, nsprob, ewprob):
@@ -1151,8 +1138,6 @@ class WEComponent(Component):
                             deadends.append((x+cwidth-cl,y+spot))
                         else:
                             newdoors.append((x+cwidth-cl-1,y+spot))
-                else:
-                    print "How did an ewcorridor's cradix[2] become", cradix[2]                                     ####
         self.prune_doors(newdoors)
         if newdoors:
             self.station.doors += newdoors
