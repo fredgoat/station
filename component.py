@@ -73,14 +73,26 @@ clock.tick(240)
 mouse = {'pos':(0,0), 1:0, 2:0, 3:0, 4:0, 5:0, 6:0} # {position, button 1, button 2, etc}
 pygame.event.set_allowed([pygame.QUIT, pygame.KEYDOWN, pygame.KEYUP, pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP, pygame.MOUSEMOTION])
 
+
+# def resource_path(relative_path):
+#     """ Get absolute path to resource if you put all images through it while loading, but doesn't seem to work in Pyinstaller """
+#     try:
+#         # PyInstaller creates a temp folder and stores path in _MEIPASS
+#         base_path = getattr(sys, '_MEIPASS', os.getcwd())
+#     except Exception:
+#         base_path = os.path.abspath(".")
+#
+#     return os.path.join(base_path, relative_path)
+
+
 gameDisplay = pygame.display.set_mode((winWidth * winZoom, winHeight * winZoom))      # the actual window will start at ten pixels per tile
 pygame.display.set_caption('Space Station')
 backgroundColor = (0, 0, 0)
-background = pygame.image.load('background.bmp').convert()
-blankTile = pygame.image.load('blank tile.png')
-defaultTile = pygame.image.load('default tile.bmp').convert()           # these are now Surfaces, and converted to a nice /pixel/ format
-corridorTile = pygame.image.load('corridor tile.bmp').convert()         # later if I have sprites I can set_colorkey((255,255,255)) to make the white parts transparent
-airlockTile = pygame.image.load('airlock tile.bmp').convert()
+background = pygame.image.load('images/background.bmp').convert()
+blankTile = pygame.image.load('images/blank tile.png')
+defaultTile = pygame.image.load('images/default tile.bmp').convert()           # these are now Surfaces, and converted to a nice /pixel/ format
+corridorTile = pygame.image.load('images/corridor tile.bmp').convert()         # later if I have sprites I can set_colorkey((255,255,255)) to make the white parts transparent
+airlockTile = pygame.image.load('images/airlock tile.bmp').convert()
 defaultPattern = pygame.Surface((winWidth * winZoom, winHeight * winZoom))
 
 
@@ -102,32 +114,32 @@ class Tile(object):
             equipmentFlavors[flavor][name] = (self, flavors[flavor])        # add a tuple of (a pointer back to yourself, and your flavor strength)
 
 
-converter = Tile('converter', 'converter tile.bmp', (30,30), {'power':1})               # power/voltage converters
-battery = Tile('battery', 'battery tile.bmp', (30,30), {'power':1})                     # NiH2 battery
-thermoregulator = Tile('thermoregulator', 'thermoregulator tile.bmp', (30,30), {'life support':20})
-recycler = Tile('recycler', 'recycler tile.bmp', (30,30), {'life support':1})           # atmospheric/oxygen recycler
-pressurizer = Tile('pressurizer', 'pressurizer tile.bmp', (30,30), {'life support':2})    # pressure control
-suppressor = Tile('suppressor', 'suppressor tile.bmp', (30,30), {'life support':50})      # fire suppression system
-dehumidifier = Tile('dehumidifier', 'dehumidifier tile.bmp', (10,10), {'life support':100})
-infirmary = Tile('infirmary', 'infirmary tile.bmp', (30,30), {'medical':50})
-medstation = Tile('medstation', 'medstation tile.bmp', (10,10), {'medical':200})
-farm = Tile('farm', 'farm tile.bmp', (30,30), {'hydroponics':10})               # algae farm
-box = Tile('box', 'box tile.bmp', (10,10), {'hydroponics':60})                # grow box
-purifier = Tile('purifier', 'purifier tile.bmp', (30,30), {'hydroponics':3})       # water purifier
-extruder = Tile('extruder', 'extruder tile.bmp', (30,30), {'manufacture':5})       # wire extruder
-fabricator = Tile('fabricator', 'fabricator tile.bmp', (30,30), {'manufacture':2})   # component fabricator
-assembler = Tile('assembler', 'assembler tile.bmp', (30,30), {'manufacture':1})     # circuit assembler
-furnace = Tile('furnace', 'converter tile.bmp', (30,30), {'reclamation':1})         # metal/silica furnace
-mold = Tile('mold', 'converter tile.bmp', (30,30), {'reclamation':1})               # plastic mold
-electrolyzer = Tile('electrolyzer', 'converter tile.bmp', (30,30), {'reclamation':2})
-hold = Tile('hold', 'converter tile.bmp', (30,30), {'cargo':1})
-locker = Tile('locker', 'converter tile.bmp', (30,30), {'cargo':5})
-cabin = Tile('cabin', 'converter tile.bmp', (30,30), {'quarters':10})               # boss's cabin
-dormitory = Tile('dormitory', 'converter tile.bmp', (30,30), {'quarters':1})
-refectory = Tile('refectory', 'converter tile.bmp', (30,30), {'quarters':5})
-sensors = Tile('sensors', 'converter tile.bmp', (30,30), {'command':2})
-comms = Tile('comms', 'converter tile.bmp', (30,30), {'command':1})
-bridge = Tile('bridge', 'converter tile.bmp', (30,30), {'command':10})
+converter = Tile('converter', 'images/converter tile.bmp', (30,30), {'power':1})               # power/voltage converters
+battery = Tile('battery', 'images/battery tile.bmp', (30,30), {'power':1})                     # NiH2 battery
+thermoregulator = Tile('thermoregulator', 'images/thermoregulator tile.bmp', (30,30), {'life support':20})
+recycler = Tile('recycler', 'images/recycler tile.bmp', (30,30), {'life support':1})           # atmospheric/oxygen recycler
+pressurizer = Tile('pressurizer', 'images/pressurizer tile.bmp', (30,30), {'life support':2})    # pressure control
+suppressor = Tile('suppressor', 'images/suppressor tile.bmp', (30,30), {'life support':50})      # fire suppression system
+dehumidifier = Tile('dehumidifier', 'images/dehumidifier tile.bmp', (10,10), {'life support':100})
+infirmary = Tile('infirmary', 'images/infirmary tile.bmp', (30,30), {'medical':50})
+medstation = Tile('medstation', 'images/medstation tile.bmp', (10,10), {'medical':300})
+farm = Tile('farm', 'images/farm tile.bmp', (30,30), {'hydroponics':10})               # algae farm
+box = Tile('box', 'images/box tile.bmp', (10,10), {'hydroponics':60})                # grow box
+purifier = Tile('purifier', 'images/purifier tile.bmp', (30,30), {'hydroponics':3})       # water purifier
+extruder = Tile('extruder', 'images/extruder tile.bmp', (30,30), {'manufacture':5})       # wire extruder
+fabricator = Tile('fabricator', 'images/fabricator tile.bmp', (30,30), {'manufacture':2})   # component fabricator
+assembler = Tile('assembler', 'images/assembler tile.bmp', (30,30), {'manufacture':1})     # circuit assembler
+furnace = Tile('furnace', 'images/converter tile.bmp', (30,30), {'reclamation':1})         # metal/silica furnace
+mold = Tile('mold', 'images/converter tile.bmp', (30,30), {'reclamation':1})               # plastic mold
+electrolyzer = Tile('electrolyzer', 'images/converter tile.bmp', (30,30), {'reclamation':2})
+hold = Tile('hold', 'images/converter tile.bmp', (30,30), {'cargo':1})
+locker = Tile('locker', 'images/converter tile.bmp', (30,30), {'cargo':5})
+cabin = Tile('cabin', 'images/converter tile.bmp', (30,30), {'quarters':10})               # boss's cabin
+dormitory = Tile('dormitory', 'images/converter tile.bmp', (30,30), {'quarters':1})
+refectory = Tile('refectory', 'images/converter tile.bmp', (30,30), {'quarters':5})
+sensors = Tile('sensors', 'images/converter tile.bmp', (30,30), {'command':2})
+comms = Tile('comms', 'images/converter tile.bmp', (30,30), {'command':1})
+bridge = Tile('bridge', 'images/converter tile.bmp', (30,30), {'command':10})
 
 
 drawnTiles = {'#': defaultTile, 'C': corridorTile}
@@ -585,10 +597,10 @@ class Station(object):
                                          (index[1] <= d[1] <= index[1] + cheight - 1) or \
                                          (d[1] == index[1] - 1 or d[1] == index[1] + cheight) and \
                                          (index[0] <= d[0] <= index[0] + cwidth - 1), doors)
-            print "Should this component form?  So far we have", self.component_count                               ####
             if is_area(self.space, (index[0] - 1, index[1] - 1), cwidth + 2, cheight + 2) and not (self.component_count > 0 and not realdoors): # not blocked? still doors left?
                 if random() < compFreq or self.component_count == 0:
                     self.component_count += 1
+                    print "Component", self.component_count, "forming on attempt", crashcount                             ####
                     doors = realdoors
                     if cradix[2] == 'n' or cradix[2] == 's':
                         self.components.append(NSComponent(self.space, self, cradix, half_width, half_height, flavor, doors, nsprob, ewprob))
@@ -642,7 +654,7 @@ class Component(object):
 
     def place(self):
         x, y = self.index
-        print 'Component forming!  index:', self.index, 'extremity:', (x + self.width - 1, y + self.height - 1), 'width:', self.width, 'height:', self.height ####
+        print 'index:', self.index, 'extremity:', (x + self.width - 1, y + self.height - 1), 'width:', self.width, 'height:', self.height ####
         for ln in range(self.height):       # then place component
             for pt in range(self.width):
                 self.space[(x+pt,y+ln)] = '#'
