@@ -47,14 +47,14 @@ compMultiplier = 2
 
 noFlavor = {'power':0, 'cargo':0, 'quarters':0, 'life support':0, 'medical':0, 'hydroponics':0, \
                  'command':0, 'reclamation':0, 'manufacture':0}
-defaultFlavor = {'power':100, 'cargo':10, 'quarters':0, 'life support':200, 'medical':0, 'hydroponics':0, \
-                 'command':0, 'reclamation':0, 'manufacture':0}
+defaultFlavor = {'power':300, 'cargo':-50, 'quarters':-300, 'life support':500, 'medical':-200, 'hydroponics':-50, \
+                 'command':-700, 'reclamation':-300, 'manufacture':-500}
 equipmentFlavors = {'power':{}, 'cargo':{}, 'quarters':{}, 'life support':{}, 'medical':{}, 'hydroponics':{}, \
                  'command':{}, 'reclamation':{}, 'manufacture':{}}        # this is each flavor's equipment value per tile, and a pointer to that equipment
 equipmentLoot = {'converter': [], 'battery': [], 'thermoregulator': [], 'recycler':[], 'suppressor':[], 'pressurizer':[], \
                  'dehumidifier':[], 'infirmary':[], 'medstation':[], 'farm':[], 'box':[], 'purifier':[], 'extruder':[], \
                  'fabricator':[], 'assembler':[], 'furnace':[], 'mold':[], 'electrolyzer':[], 'hold':[], 'locker':[], \
-                  'cabin':[], 'dormitory':[], 'refectory':[], 'sensors':[], 'comms':[], 'bridge':[]}
+                 'trashed':[], 'cabin':[], 'dormitory':[], 'refectory':[], 'sensors':[], 'comms':[], 'bridge':[]}
 
 stations = []
 outerSpace = {}
@@ -72,17 +72,6 @@ clock = pygame.time.Clock()
 clock.tick(240)
 mouse = {'pos':(0,0), 1:0, 2:0, 3:0, 4:0, 5:0, 6:0} # {position, button 1, button 2, etc}
 pygame.event.set_allowed([pygame.QUIT, pygame.KEYDOWN, pygame.KEYUP, pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP, pygame.MOUSEMOTION])
-
-
-# def resource_path(relative_path):
-#     """ Get absolute path to resource if you put all images through it while loading, but doesn't seem to work in Pyinstaller """
-#     try:
-#         # PyInstaller creates a temp folder and stores path in _MEIPASS
-#         base_path = getattr(sys, '_MEIPASS', os.getcwd())
-#     except Exception:
-#         base_path = os.path.abspath(".")
-#
-#     return os.path.join(base_path, relative_path)
 
 
 gameDisplay = pygame.display.set_mode((winWidth * winZoom, winHeight * winZoom))      # the actual window will start at ten pixels per tile
@@ -107,39 +96,40 @@ def patterner(background, tile, size):                      # this draws a repea
 class Tile(object):
     def __init__(self, name, image, size, flavors):
         self.name = name
-        self.tile = pygame.image.load(image).convert()
+        self.tile = pygame.image.load('images/'+image).convert()
         self.pattern = patterner(defaultPattern.copy(), pygame.transform.scale(self.tile, size), size)
         self.flavors = flavors
         for flavor in flavors.keys():                                       # look at your flavors, and in equipmentFlavor
             equipmentFlavors[flavor][name] = (self, flavors[flavor])        # add a tuple of (a pointer back to yourself, and your flavor strength)
 
 
-converter = Tile('converter', 'images/converter tile.bmp', (30,30), {'power':1})               # power/voltage converters
-battery = Tile('battery', 'images/battery tile.bmp', (30,30), {'power':1})                     # NiH2 battery
-thermoregulator = Tile('thermoregulator', 'images/thermoregulator tile.bmp', (30,30), {'life support':20})
-recycler = Tile('recycler', 'images/recycler tile.bmp', (30,30), {'life support':1})           # atmospheric/oxygen recycler
-pressurizer = Tile('pressurizer', 'images/pressurizer tile.bmp', (30,30), {'life support':2})    # pressure control
-suppressor = Tile('suppressor', 'images/suppressor tile.bmp', (30,30), {'life support':50})      # fire suppression system
-dehumidifier = Tile('dehumidifier', 'images/dehumidifier tile.bmp', (10,10), {'life support':100})
-infirmary = Tile('infirmary', 'images/infirmary tile.bmp', (30,30), {'medical':50})
-medstation = Tile('medstation', 'images/medstation tile.bmp', (10,10), {'medical':300})
-farm = Tile('farm', 'images/farm tile.bmp', (30,30), {'hydroponics':10})               # algae farm
-box = Tile('box', 'images/box tile.bmp', (10,10), {'hydroponics':60})                # grow box
-purifier = Tile('purifier', 'images/purifier tile.bmp', (30,30), {'hydroponics':3})       # water purifier
-extruder = Tile('extruder', 'images/extruder tile.bmp', (30,30), {'manufacture':5})       # wire extruder
-fabricator = Tile('fabricator', 'images/fabricator tile.bmp', (30,30), {'manufacture':2})   # component fabricator
-assembler = Tile('assembler', 'images/assembler tile.bmp', (30,30), {'manufacture':1})     # circuit assembler
-furnace = Tile('furnace', 'images/converter tile.bmp', (30,30), {'reclamation':1})         # metal/silica furnace
-mold = Tile('mold', 'images/converter tile.bmp', (30,30), {'reclamation':1})               # plastic mold
-electrolyzer = Tile('electrolyzer', 'images/converter tile.bmp', (30,30), {'reclamation':2})
-hold = Tile('hold', 'images/converter tile.bmp', (30,30), {'cargo':1})
-locker = Tile('locker', 'images/converter tile.bmp', (30,30), {'cargo':5})
-cabin = Tile('cabin', 'images/converter tile.bmp', (30,30), {'quarters':10})               # boss's cabin
-dormitory = Tile('dormitory', 'images/converter tile.bmp', (30,30), {'quarters':1})
-refectory = Tile('refectory', 'images/converter tile.bmp', (30,30), {'quarters':5})
-sensors = Tile('sensors', 'images/converter tile.bmp', (30,30), {'command':2})
-comms = Tile('comms', 'images/converter tile.bmp', (30,30), {'command':1})
-bridge = Tile('bridge', 'images/converter tile.bmp', (30,30), {'command':10})
+converter = Tile('converter', 'converter tile.bmp', (30,30), {'power':3})               # power/voltage converters
+battery = Tile('battery', 'battery tile.bmp', (30,30), {'power':2})                     # NiH2 battery
+thermoregulator = Tile('thermoregulator', 'thermoregulator tile.bmp', (30,30), {'life support':10})
+recycler = Tile('recycler', 'recycler tile.bmp', (30,30), {'life support':1})           # atmospheric/oxygen recycler
+pressurizer = Tile('pressurizer', 'pressurizer tile.bmp', (30,30), {'life support':2})    # pressure control
+suppressor = Tile('suppressor', 'suppressor tile.bmp', (30,30), {'life support':20})      # fire suppression system
+dehumidifier = Tile('dehumidifier', 'dehumidifier tile.bmp', (10,10), {'life support':100})
+infirmary = Tile('infirmary', 'infirmary tile.bmp', (30,30), {'medical':1})
+medstation = Tile('medstation', 'medstation tile.bmp', (10,10), {'medical':100})
+farm = Tile('farm', 'farm tile.bmp', (30,30), {'hydroponics':5})               # algae farm
+box = Tile('box', 'box tile.bmp', (10,10), {'hydroponics':50})                # grow box
+purifier = Tile('purifier', 'purifier tile.bmp', (30,30), {'hydroponics':2})       # water purifier
+extruder = Tile('extruder', 'extruder tile.bmp', (30,30), {'manufacture':5})       # wire extruder
+fabricator = Tile('fabricator', 'fabricator tile.bmp', (30,30), {'manufacture':2})   # component fabricator
+assembler = Tile('assembler', 'assembler tile.bmp', (30,30), {'manufacture':1})     # circuit assembler
+furnace = Tile('furnace', 'furnace tile.bmp', (30,30), {'reclamation':1})         # metal/silica furnace
+mold = Tile('mold', 'mold tile.bmp', (30,30), {'reclamation':1})               # plastic mold
+electrolyzer = Tile('electrolyzer', 'electrolyzer tile.bmp', (30,30), {'reclamation':2})
+hold = Tile('hold', 'converter tile.bmp', (30,30), {'cargo':20})
+locker = Tile('locker', 'converter tile.bmp', (30,30), {'cargo':100})
+trashed = Tile('trashed', 'converter tile.bmp', (30,30), {'cargo':1})
+cabin = Tile('cabin', 'converter tile.bmp', (30,30), {'quarters':10})               # boss's cabin
+dormitory = Tile('dormitory', 'converter tile.bmp', (30,30), {'quarters':1})
+refectory = Tile('refectory', 'converter tile.bmp', (30,30), {'quarters':5})
+sensors = Tile('sensors', 'converter tile.bmp', (30,30), {'command':2})
+comms = Tile('comms', 'converter tile.bmp', (30,30), {'command':1})
+bridge = Tile('bridge', 'converter tile.bmp', (30,30), {'command':10})
 
 
 drawnTiles = {'#': defaultTile, 'C': corridorTile}
@@ -166,7 +156,7 @@ def game_loop(mouse, grid, index, zoom, space):
                 pygame.quit()
                 quit()
 
-            elif pygame.mouse.get_focused():
+            elif pygame.mouse.get_focused() or pygame.key.get_focused():
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     mouse[event.button] = 1
                     mouse['pos'] = event.pos
@@ -190,6 +180,13 @@ def game_loop(mouse, grid, index, zoom, space):
                     zoom = min(maxZoom, zoom + zoom/7 + (zoom % 7 > 0))
                     index = (index[0]-winWidth*5/zoom, index[1]-winHeight*5/zoom)
                     grid.update(index, zoom, space)
+
+                if event.type == pygame.KEYDOWN:
+                    if (event.key == pygame.K_w) or (event.key == pygame.K_q) and \
+                        (pygame.KMOD_RCTRL & pygame.key.get_mods() or pygame.KMOD_LCTRL & pygame.key.get_mods()):   # if ctrl-q or ctrl-w
+                        pygame.quit()
+                        quit()
+
 
         pygame.display.update()  # redraw everything
         pygame.mouse.get_rel()      # mark this moment to measure mouse movement from (dump relative movement up to this point)
@@ -310,13 +307,14 @@ def block_off(space, index, half_width, half_height):
     return blocks
 
 
-def season(flavor):                                         # this boosts all existing flavors, adds some, and subtracts relative to total
+def season(flavor, area):                                         # this boosts all existing flavors, adds some, and subtracts relative to total
     seasonings = 0
     for spice in flavor.keys():
+        flavor[spice] = flavor[spice]*area/(5*minCompHeight*minCompWidth)
         seasonings += max(0, flavor[spice])                 # add up all the seasonings
     for spice in flavor.keys():
-        flavor[spice] *= 2
-        flavor[spice] += randint(0,30) - flavor[spice]/4
+        flavor[spice] += randint(0,10)**2 - seasonings/18
+
     return flavor
 
 
@@ -329,6 +327,7 @@ def flavor_add(base, addition):
 def flavor_subtract(base, subtraction):
     for spice in base.keys():
         base[spice] -= subtraction[spice]
+    print "Subtracting used flavor of", subtraction
     return base
 
 
@@ -637,7 +636,7 @@ class Station(object):
     def __init__(self, space, stradix, flavor):
         self.space = space
         self.stradix = stradix
-        self.flavor = season(flavor)
+        self.flavor = flavor
         self.components = []
         self.component_count = 0
         self.doors = []
@@ -758,20 +757,24 @@ class Component(object):
                 flavs = self.flavor.keys()
                 while seas > 0 and attempts < 100:                                 # pick a piece of equipment to place in each block
                     flav = flavs.pop()
-                    seas -= max(0, self.flavor[flav])                   # pick a flavor from self.flavor, jenga style
+                    seas -= max(0, self.flavor[flav])                   # pick a flavor from self.flavor, weighted jenga style
                     attempts += 1
                 attempts = 0
-                while attempts < 20:
+                while attempts < 50:
                     attempts += 1
                     equip = equipmentFlavors[flav].keys()[randint(0,len(equipmentFlavors[flav].keys())-1)]      # pick 'generator' or something
                     burden = equipmentFlavors[flav][equip][1] * block[1] * block[2]                             # how much flavor would that size generator have?
-                    if self.flavor[flav]/6 < burden < self.flavor[flav]/3:                                      # is it a reasonable amount of flavor?
+                    if self.flavor[flav]/20 - attempts*5 < burden < self.flavor[flav]/5 + attempts*20:                                      # is it a reasonable amount of flavor?
                         self.equipment.append({'eindex': block[0], 'width': block[1], 'height': block[2], 'type': equip, 'flavor': flav, 'inv': equipmentLoot[equip]})
+                        print equip, "fits just fine!  It has a burden of", burden, "out of a total", flav, "of", self.flavor[flav]
                         for f in equipmentFlavors[flav][equip][0].flavors.keys():                           # go through all flavors for that equipment, [equip][0] is the Tile object
                             self.flavored[f] += equipmentFlavors[f][equip][1] * block[1] * block[2]         # add tile flavor * area to self.flavor/ed
                         break
-                if attempts >= 20:
+                    else:
+                        print equip, "CANNOT fit, because it has a burden of", burden, "out of a total", flav, "of", self.flavor[flav]
+                if attempts >= 50:
                     equip = equipmentFlavors[flav].keys()[randint(0,len(equipmentFlavors[flav].keys())-1)]      # whatever, fine, just place it
+                    print "No equipment wants to go here, so let's just put this", equip
                     self.equipment.append({'eindex': block[0], 'width': block[1], 'height': block[2], 'type': equip, 'flavor': flav, 'inv': equipmentLoot[equip]})
                     for f in equipmentFlavors[flav][equip][0].flavors.keys():
                         self.flavored[f] += equipmentFlavors[f][equip][1] * block[1] * block[2]
@@ -780,7 +783,6 @@ class Component(object):
     def __init__(self, space, station, cradix, half_width, half_height, flavor, doors, nsprob, ewprob):
         self.space = space
         self.cradix = cradix
-        self.flavor = season(flavor)        # the flavor the component wants to have (mutate it from that provided by the spawn source)
         self.doors = doors
         self.nsprob = nsprob
         self.ewprob = ewprob
@@ -790,11 +792,14 @@ class Component(object):
         self.half_height = half_height
         self.width = 2 * half_width + 1
         self.height = 2 * half_height + 1
+        self.flavor = season(flavor.copy(), self.width*self.height)        # the flavor the component wants to have (mutate it from that provided by the spawn source)
+        print "This component's flavors will be", self.flavor
         self.index = (cradix[0] - 2 * half_width if cradix[2] == 'e' else cradix[0] if cradix[2] == 'w' \
         else cradix[0] - half_width, cradix[1] if cradix[2] == 'n' else cradix[1] - 2 * half_height \
         if cradix[2] == 's' else cradix[1] - half_height)       # index are at the top left, cradix is at the center on the spawning side, cradix[2] is direction spawning happens /from/
         self.place()
         self.flavored = noFlavor            # the flavor from the equipment placed
+
 
 class NSComponent(Component):
 
@@ -897,7 +902,7 @@ class NSComponent(Component):
                 tion = direc.pop(randint(0,len(direc)-1))                    # pick a direction and spawn some components!
                 spawnx = self.index[0] - 2 if tion == 'e' else self.index[0] + cwidth + 1
                 self.station.spawn_component((spawnx, self.index[1] + self.half_height, tion), \
-                                             flavor_subtract(self.flavor, self.flavored), self.doors, \
+                                             self.flavor, self.doors, \
                                              self.nsprob, branchPersistence * self.ewprob)
         for end in deadends:
             self.space[end] = 'C'
@@ -971,14 +976,15 @@ class NSComponent(Component):
             self.station.doors += newdoors
             self.doors += newdoors
             self.station.spawn_component((cradix[0], cradix[1] + cheight + 1 if cradix[2] == 'n' else cradix[1] - cheight - 1, cradix[2]), \
-                                         flavor_subtract(self.flavor, self.flavored), self.doors, nsprob * branchPersistence, ewprob)
+                                         self.flavor, self.doors, nsprob * branchPersistence, ewprob)
         self.spawn_webranches(deadends)
 
     def __init__(self, space, station, cradix, half_width, half_height, flavor, doors, nsprob, ewprob):
         Component.__init__(self, space, station, cradix, half_width, half_height, flavor, doors, nsprob, ewprob)
-        self.spawn_nscorridors(space, cradix, half_width, half_height, flavor, nsprob, ewprob)
+        self.spawn_nscorridors(space, cradix, half_width, half_height, self.flavor, nsprob, ewprob)
         link_corridors(space, self.index, self.width, self.height, self.doors)
-        space = self.place_equipment()
+        self.place_equipment()
+
 
 class WEComponent(Component):
 
@@ -1081,7 +1087,7 @@ class WEComponent(Component):
                 tion = direc.pop(randint(0,len(direc)-1))                    # pick a direction and spawn some components!
                 spawny = self.index[1] - 2 if tion == 's' else self.index[1] + cheight + 1
                 self.station.spawn_component((self.index[0] + self.half_width, spawny, tion), \
-                                             flavor_subtract(self.flavor, self.flavored), self.doors, \
+                                             self.flavor, self.doors, \
                                              self.nsprob * branchPersistence, self.ewprob)
         for end in deadends:
             self.space[end] = 'C'
@@ -1155,20 +1161,20 @@ class WEComponent(Component):
             self.station.doors += newdoors
             self.doors += newdoors
             self.station.spawn_component((cradix[0] + cwidth + 1 if cradix[2] == 'w' else cradix[0] - cwidth - 1, cradix[1], cradix[2]), \
-                                         flavor_subtract(self.flavor, self.flavored), self.doors, nsprob, ewprob * branchPersistence)
+                                         self.flavor, self.doors, nsprob, ewprob * branchPersistence)
         self.spawn_nsbranches(deadends)
-
 
     def __init__(self, space, station, cradix, half_width, half_height, flavor, doors, nsprob, ewprob):
         Component.__init__(self, space, station, cradix, half_width, half_height, flavor, doors, nsprob, ewprob)
         self.spawn_wecorridors(space, cradix, half_width, half_height, flavor, nsprob, ewprob)
         link_corridors(space, self.index, self.width, self.height, self.doors)
-        space = self.place_equipment()
+        self.place_equipment()
+
 
 grid = Grid()
 gameDisplay.fill(backgroundColor)     # and a blank image window
 
-stations.append(Station(outerSpace, (0, 0, cardinals[randint(0, 3)]), defaultFlavor))  # (what region?, (origin x,origin y,from what direction?), what flavors?)
+stations.append(Station(outerSpace, (0, 0, cardinals[randint(0, 3)]), season(defaultFlavor, 4*minCompWidth*minCompHeight)))  # (what region?, (origin x,origin y,from what direction?), what flavors?)
 
 grid.update(wIndex, winZoom, outerSpace)              # put that space on the screen
 
@@ -1178,4 +1184,4 @@ quit()
 
 #Do:  Add more equipment! (Loot, what else?)  Make UI/controls/people/equipment rules!
 
-# What other flavors?  Armory?  Science?  Propulsion?  Good seed 276
+# What other flavors?  Armory?  Science?  Propulsion?
