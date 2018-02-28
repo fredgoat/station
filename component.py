@@ -18,6 +18,8 @@ Index = upper left point.  Extremity = lower right.  Coordinate = that point.  R
 import pdb          # pdb.set_trace() stops everything and lets you do pdb commands
 import traceback    # traceback.print_stack() just prints the stack at that point
 import doctest      # doctest.testmod() returns None if all fake Python sessions in comments in this module return what they say, like so
+import math
+
 '''
 >>> function(*args)
 returnvalue
@@ -26,6 +28,7 @@ returnvalue
 from random import random, randint, seed
 
 super_seed = randint(1,1000)
+# super_seed = 410
 print "This seed is", super_seed
 seed(super_seed)    # this will let you go back to good randomnesses
 
@@ -47,14 +50,67 @@ compMultiplier = 2
 
 noFlavor = {'power':0, 'cargo':0, 'quarters':0, 'life support':0, 'medical':0, 'hydroponics':0, \
                  'command':0, 'reclamation':0, 'manufacture':0}
-defaultFlavor = {'power':300, 'cargo':-50, 'quarters':-300, 'life support':500, 'medical':-200, 'hydroponics':-50, \
-                 'command':-700, 'reclamation':-300, 'manufacture':-500}
+defaultFlavor = {'power':500, 'cargo':0, 'quarters':-500, 'life support':500, 'medical':-300, 'hydroponics':-100, \
+                 'command':-700, 'reclamation':-500, 'manufacture':-700}
 equipmentFlavors = {'power':{}, 'cargo':{}, 'quarters':{}, 'life support':{}, 'medical':{}, 'hydroponics':{}, \
                  'command':{}, 'reclamation':{}, 'manufacture':{}}        # this is each flavor's equipment value per tile, and a pointer to that equipment
-equipmentLoot = {'converter': [], 'battery': [], 'thermoregulator': [], 'recycler':[], 'suppressor':[], 'pressurizer':[], \
-                 'dehumidifier':[], 'infirmary':[], 'medstation':[], 'farm':[], 'box':[], 'purifier':[], 'extruder':[], \
-                 'fabricator':[], 'assembler':[], 'furnace':[], 'mold':[], 'electrolyzer':[], 'hold':[], 'locker':[], \
-                 'trashed':[], 'cabin':[], 'dormitory':[], 'refectory':[], 'sensors':[], 'comms':[], 'bridge':[]}
+equipmentLoot = {'converter': [('nothing', 1, (0,0))], 'battery': [('nothing', 1, (0,0))], \
+                 'thermoregulator': [('nothing', 1, (0,0))], 'recycler':[('nothing', 1, (0,0))], \
+                 'suppressor':[('nothing', 1, (0,0))], 'pressurizer':[('nothing', 1, (0,0))], \
+                 'dehumidifier':[('nothing', 0.25, (0,0)), ('water', 0.75, (0,3))], \
+                 'infirmary':[('nothing', 0.1, (0,0)), ('food', 0.5, (1,3)), ('water', 0.7, (1,4)), ('medicine', 0.95, (1,5)), ('electrolytes', 0.6, (1,2))], \
+                 'medstation':[('nothing', 0.5, (0,0)), ('food', 0.1, (1,3)), ('water', 0.6, (1,4)), ('medicine', 0.8, (1,9))], \
+                 'farm':[('nothing', 0.6, (0,0)), ('food', 0.75, (1,7)), ('water', 0.2, (1,3)), ('medicine', 0.1, (1,3))], \
+                 'box':[('nothing', 0.8, (0,0)), ('food', 0.2, (1,10)), ('medicine', 0.05, (1,4))], \
+                 'purifier':[('nothing', 0.1, (0,0)), ('water', 0.95, (3,10))], \
+                 'extruder':[('nothing', 0.1, (0,0)), ('metal', 0.6, (1,4)), ('wire', 0.8, (1,10))], \
+                 'fabricator':[('nothing', 0.1, (0,0)), ('metal', 0.2, (1,2)), ('wire', 0.8, (1,6)), \
+                               ('plastic', 0.4, (1,3)), ('silica', 0.4, (1,3)), ('electrolytes', 0.3, (1,3)), \
+                               ('hydrogen', 0.2, (1,3)), ('diodes', 0.5, (1,4)), ('photocells', 0.2, (1,3)), \
+                               ('transistors', 0.4, (1,4)), ('leds', 0.3, (1,4)), ('screens', 0.1, (1,2)), \
+                               ('capacitors', 0.4, (1,4)), ('resistors', 0.5, (1,4)), ('oscillators', 0.1, (1,2)), \
+                               ('batteries', 0.3, (1,3)), ('antennas', 0.1, (1,2)), ('transformers', 0.2, (1,3)), \
+                               ('inductors', 0.2, (1,3))], \
+                 'assembler':[('nothing', 0.1, (0,0)), ('wire', 0.8, (1,6)), ('plastic', 0.1, (1,2)), ('silica', 0.5, (1,6)), \
+                               ('diodes', 0.5, (1,6)), ('photocells', 0.2, (1,4)), ('transistors', 0.4, (1,6)), \
+                               ('leds', 0.3, (1,6)), ('screens', 0.1, (1,3)), ('capacitors', 0.4, (1,6)), \
+                               ('resistors', 0.5, (1,6)), ('oscillators', 0.1, (1,3)), ('batteries', 0.3, (1,4)), \
+                               ('antennas', 0.1, (1,3)), ('transformers', 0.2, (1,4)), ('inductors', 0.2, (1,4))], \
+                 'furnace':[('nothing', 0.3, (0,0)), ('metal', 0.2, (1,3)), ('silica', 0.1, (1,3)), ('scrap', 0.4, (1,5))], \
+                 'mold':[('nothing', 0.4, (0,0)), ('trash', 0.4, (1,5)), ('plastic', 0.2, (1,3))], \
+                 'electrolyzer':[('nothing', 0.1, (0,0)), ('water', 0.9, (5,10)), ('hydrogen', 0.7, (5,15))], \
+                 'hold':[('nothing', 0.1, (0,0)), ('metal', 0.2, (1,2)), ('wire', 0.2, (1,2)), \
+                               ('plastic', 0.2, (1,2)), ('silica', 0.1, (1,4)), ('electrolytes', 0.1, (1,2)), \
+                               ('hydrogen', 0.1, (1,2)), ('diodes', 0.1, (1,2)), ('photocells', 0.1, (1,2)), \
+                               ('transistors', 0.1, (1,2)), ('leds', 0.1, (1,2)), ('screens', 0.05, (1,2)), \
+                               ('capacitors', 0.1, (1,2)), ('resistors', 0.1, (1,2)), ('oscillators', 0.1, (1,2)), \
+                               ('batteries', 0.2, (1,2)), ('antennas', 0.1, (1,2)), ('transformers', 0.1, (1,2)), \
+                               ('inductors', 0.1, (1,2)), ('scrap', 0.1, (1,10)), ('trash', 0.1, (4,10)), \
+                               ('food', 0.3, (1,8)), ('water', 0.1, (1,10)), ('medicine', 0.1, (1,2))], \
+                 'locker':[('nothing', 0.1, (0,0)), ('leds', 0.1, (1,2)), ('screens', 0.05, (1,2)), \
+                               ('batteries', 0.2, (1,2)), ('antennas', 0.1, (1,2)), ('trash', 0.5, (4,10)), \
+                               ('food', 0.5, (1,15)), ('water', 0.5, (1,20)), ('medicine', 0.2, (1,5))], \
+                 'trashed':[('nothing', 0.1, (0,0)), ('wire', 0.4, (1,2)), ('silica', 0.3, (1,2)), \
+                               ('diodes', 0.1, (1,2)), ('photocells', 0.1, (1,2)), \
+                               ('transistors', 0.1, (1,2)), ('leds', 0.1, (1,2)), ('screens', 0.05, (1,2)), \
+                               ('capacitors', 0.1, (1,2)), ('resistors', 0.1, (1,2)), ('oscillators', 0.1, (1,2)), \
+                               ('batteries', 0.1, (1,2)), ('antennas', 0.05, (1,2)), ('transformers', 0.1, (1,2)), \
+                               ('inductors', 0.1, (1,2)), ('scrap', 0.8, (1,8)), ('trash', 0.6, (1,5))], \
+                 'cabin':[('nothing', 0.1, (0,0)), ('screens', 0.1, (1,3)), ('batteries', 0.2, (1,3)), ('trash', 0.1, (1,2)), \
+                               ('food', 0.6, (1,8)), ('water', 0.6, (1,6)), ('medicine', 0.4, (1,6))], \
+                 'dormitory':[('nothing', 0.1, (0,0)), ('screens', 0.05, (1,2)), ('batteries', 0.1, (1,2)), ('trash', 0.1, (1,2)), \
+                               ('food', 0.3, (1,4)), ('water', 0.5, (1,3)), ('medicine', 0.1, (1,2))], \
+                 'refectory':[('nothing', 0.1, (0,0)), ('trash', 0.1, (1,2)), \
+                               ('food', 0.6, (1,8)), ('water', 0.6, (1,6)), ('medicine', 0.05, (1,2))], \
+                 'sensors':[('nothing', 1, (0,0))], 'comms':[('nothing', 1, (0,0))], \
+                 'bridge':[('nothing', 0.1, (0,0)), ('screens', 0.05, (1,3)), ('batteries', 0.1, (1,3)), ('trash', 0.1, (1,3)), \
+                               ('food', 0.2, (1,2)), ('water', 0.4, (1,3)), ('medicine', 0.1, (1,2))]}
+                                        # lists of (name, weight, (min, max)) for loot(stuff) - min & max CAN be floats
+equipmentPower = {'converter':20, 'battery':0, 'thermoregulator':-3, 'recycler':-5, 'suppressor':0, 'pressurizer':-3, \
+                  'dehumidifier':-1, 'infirmary':-5, 'medstation':0, 'farm':-2, 'box':0, 'purifier':-6, \
+                  'extruder':-14, 'fabricator':-8, 'assembler':-6, 'furnace':-16, 'mold':-10, 'electrolyzer':-20, \
+                  'hold':0, 'locker':0, 'trashed':0, 'cabin':-2, 'dormitory':-1, 'refectory':-1, 'sensors':-2, \
+                  'comms':-3, 'bridge':-5}
 
 stations = []
 outerSpace = {}
@@ -121,18 +177,43 @@ assembler = Tile('assembler', 'assembler tile.bmp', (30,30), {'manufacture':1}) 
 furnace = Tile('furnace', 'furnace tile.bmp', (30,30), {'reclamation':1})         # metal/silica furnace
 mold = Tile('mold', 'mold tile.bmp', (30,30), {'reclamation':1})               # plastic mold
 electrolyzer = Tile('electrolyzer', 'electrolyzer tile.bmp', (30,30), {'reclamation':2})
-hold = Tile('hold', 'converter tile.bmp', (30,30), {'cargo':20})
-locker = Tile('locker', 'converter tile.bmp', (30,30), {'cargo':100})
-trashed = Tile('trashed', 'converter tile.bmp', (30,30), {'cargo':1})
-cabin = Tile('cabin', 'converter tile.bmp', (30,30), {'quarters':10})               # boss's cabin
-dormitory = Tile('dormitory', 'converter tile.bmp', (30,30), {'quarters':1})
-refectory = Tile('refectory', 'converter tile.bmp', (30,30), {'quarters':5})
-sensors = Tile('sensors', 'converter tile.bmp', (30,30), {'command':2})
-comms = Tile('comms', 'converter tile.bmp', (30,30), {'command':1})
-bridge = Tile('bridge', 'converter tile.bmp', (30,30), {'command':10})
+hold = Tile('hold', 'hold tile.bmp', (30,30), {'cargo':20})
+locker = Tile('locker', 'locker tile.bmp', (30,30), {'cargo':100})
+trashed = Tile('trashed', 'trashed tile.bmp', (30,30), {'cargo':1})
+cabin = Tile('cabin', 'cabin tile.bmp', (30,30), {'quarters':50})               # boss's cabin
+dormitory = Tile('dormitory', 'dormitory tile.bmp', (30,30), {'quarters':5})
+refectory = Tile('refectory', 'refectory tile.bmp', (30,30), {'quarters':30})
+sensors = Tile('sensors', 'sensors tile.bmp', (30,30), {'command':20})
+comms = Tile('comms', 'comms tile.bmp', (30,30), {'command':5})
+bridge = Tile('bridge', 'bridge tile.bmp', (30,30), {'command':100})
 
 
 drawnTiles = {'#': defaultTile, 'C': corridorTile}
+
+
+playerImage = pygame.image.load('images/player image.png')
+playerWalk1 = pygame.image.load('images/player walk1.png')
+playerWalk2 = pygame.image.load('images/player walk2.png')
+playerAction = pygame.image.load('images/player action.png')
+
+
+class Sprite(object):
+    def __init__(self, space, coords, images):
+        self.space = space
+        self.coords = coords
+        self.image = images[0]
+
+
+class Person(Sprite):
+    def __init__(self, space, coords, images, inventory):
+        Sprite.__init__(self, space, coords, images)
+        self.inventory = inventory
+        self.walk_1 = images[1]
+        self.walk_2 = images[2]
+        self.action = images[3]
+        self.mode = 0
+        self.wardrobe = [self.image, self.walk_1, self.walk_2, self.action]
+
 
 def check_return_not_none(func):
     """A decorator for checking that a function is not returning None.
@@ -211,6 +292,33 @@ class Grid(object):
         for station in nearby:
             gameDisplay.blit(pygame.transform.scale(station.image, (station.width*zoom, station.height*zoom)), \
                              (round((station.index[0] - index[0]) * zoom), round((station.index[1] - index[1]) * zoom)))
+        gameDisplay.blit(pygame.transform.scale(player.wardrobe[player.mode], (zoom, zoom)), \
+                         (round((player.coords[0] - index[0]) * zoom), round((player.coords[1] - index[1]) * zoom)))
+
+
+def loot(stuff):                # function takes a list of tuples (name, weight, (min, max)) and returns a list of tuples of names & quantity
+    total = 0
+    for i in stuff:
+        total += i[1]
+    r = random()*total
+    swag = []
+    for i in stuff:
+        if r < i[1] and not i[0] == 'nothing':
+            swag.append((int((random()**2*(i[2][1]-i[2][0]+1)) + i[2][0]), i[0]))
+    return swag                 # alternately, for a bell curve rather than a quadratic, use int((1+max-min)(0.5((2*random()-1)**3+1))+min)
+
+
+def pick(stuff):                # function takes a list of tuples (name, weight, (min, max)) and returns ONE name & quantity
+    total = 0
+    for i in stuff:
+        total += i[1]
+    r = random()*total
+    for i in stuff:
+        if r < i[1]:
+            return (int((random()**2*(i[2][1]-i[2][0]+1)) + i[2][0]), i[0])
+            break
+        else:
+            r -= i[1]
 
 
 def go(coords, direction):
@@ -238,7 +346,7 @@ def replace(space, index, extremity, target, replacement):
     return space
 
 
-def is_character(space, coords, character=' '): # epaulet?
+def is_character(space, coords, character=' '):
     if not coords in space.keys():
         if ' ' == character:
             return True
@@ -267,6 +375,22 @@ def is_any(space, index, width, height, character):  # are there any of this thi
             if is_character(space, (x+pt, y+ln), character):
                 return True
     return False
+
+
+def what_equipment(space, coords):      # returns 'door', 'corridor', or a pointer to the equipment at that point
+    nearby = filter(lambda x: x.space == space and coords[0]-500 < x.stradix[0] < coords[0]+(winWidth+1000)*maxZoom \
+                        and coords[1]-500 < x.stradix[1] < coords[1]+(winHeight+1000)*maxZoom, stations)
+    for station in nearby:
+        for comp in station.components:
+            for equip in comp.equipment:
+                if equip['eindex'][0] <= coords[0] < equip['eindex'][0] + equip['width'] and \
+                        equip['eindex'][1] <= coords[1] < equip['eindex'][1] + equip['height']:
+                    return equip
+        for door in station.doors:
+            if coords == door:
+                return 'door'
+        if is_character(station.space, coords, 'C'):
+            return 'corridor'
 
 
 def block_off(space, index, half_width, half_height):
@@ -307,13 +431,16 @@ def block_off(space, index, half_width, half_height):
     return blocks
 
 
-def season(flavor, area):                                         # this boosts all existing flavors, adds some, and subtracts relative to total
+def season(flavor):                                         # this boosts all existing flavors, adds some, and subtracts relative to total
     seasonings = 0
     for spice in flavor.keys():
-        flavor[spice] = flavor[spice]*area/(5*minCompHeight*minCompWidth)
+        flavor[spice] = int(448*math.atan(0.00224*flavor[spice]))  # trust me, this is great.  The big numbers get reduced good.
+        if flavor[spice] < 0:
+            flavor[spice] = (flavor[spice]*5) / 6             # extra boost to the negatives
         seasonings += max(0, flavor[spice])                 # add up all the seasonings
     for spice in flavor.keys():
-        flavor[spice] += randint(0,10)**2 - seasonings/18
+        flavor[spice] += randint(0,15)**2
+        flavor[spice] -= seasonings/27
 
     return flavor
 
@@ -607,6 +734,21 @@ class Station(object):
                         self.components.append(WEComponent(self.space, self, cradix, half_width, half_height, flavor, doors, nsprob, ewprob))
                 break
 
+    def update_equipment(self):
+        self.power_change, self.power_storage, self.oxygen_change, self.air_capacity, self.pressure_change, self.humidity_change = 0, 0, 0, 0, 0, 0
+        for component in self.components:
+            for equip in component.equipment:
+                self.power_change += equip['width'] * equip['height'] * equip['power']
+                if equip['type'] == 'battery':
+                    self.power_storage += equip['width'] * equip['height'] * 10
+                if equip['type'] == 'recycler':
+                    self.oxygen_change += equip['width'] * equip['height'] - len(self.population) - 1
+                if equip['type'] == 'dehumidifier':
+                    self.humidity_change -= equip['width'] * equip['height']
+                if equip['type'] == 'pressurizer':
+                    self.pressure_change += equip['width'] * equip['height']
+            self.air_capacity += component.width * component.height
+
     def update_image(self):
         for comp in self.components:
             for equip in comp.equipment:
@@ -616,7 +758,6 @@ class Station(object):
         for door in self.doors:
             coords = (round((door[0] - self.index[0]) * winZoom), round((door[1] - self.index[1]) * winZoom))
             self.image.blit(pygame.transform.scale(airlockTile, (winZoom, winZoom)), coords)
-
 
     def extent(self):
         west, north, east, south = 0,0,0,0
@@ -632,6 +773,14 @@ class Station(object):
                 south = max(south, door[1])
         return (west, north, east, south)
 
+    def enter(self):
+        door = self.doors[int(random()*len(self.doors))]
+        entries = []
+        for dir in cardinals:
+            if what_equipment(self.space, go(door, dir)) == 'corridor':
+                entries.append(go(door, dir))
+        return entries[int(random()*len(entries))]
+
 
     def __init__(self, space, stradix, flavor):
         self.space = space
@@ -641,6 +790,14 @@ class Station(object):
         self.component_count = 0
         self.doors = []
         self.spawn_component(self.stradix, self.flavor, [], (1-random()**2) * 0.75 + 0.2, (1-random()**2) * 0.75 + 0.2)     # ns and we probs are random between .2 and .95
+        self.population = []
+        self.power_change, self.power_storage, self.oxygen_change, self.air_capacity, self.pressure_change, self.humidity_change = 0, 0, 0, 0, 0, 0
+        self.update_equipment()
+        self.power = self.power_storage if self.power_change > 0 else 0
+        self.oxygen = self.air_capacity if self.oxygen_change > 0 else 0.2 * self.air_capacity
+        self.humidity = 0.0 if self.humidity_change <= 0 else 0.8
+        self.pressure = 1.0 if self.pressure_change > 0 else 0.3
+        self.population = []
         self.width = self.extent()[2] - self.extent()[0] + 1
         self.height = self.extent()[3] - self.extent()[1] + 1
         self.index = (self.extent()[0], self.extent()[1])
@@ -763,9 +920,9 @@ class Component(object):
                 while attempts < 50:
                     attempts += 1
                     equip = equipmentFlavors[flav].keys()[randint(0,len(equipmentFlavors[flav].keys())-1)]      # pick 'generator' or something
-                    burden = equipmentFlavors[flav][equip][1] * block[1] * block[2]                             # how much flavor would that size generator have?
+                    burden = equipmentFlavors[flav][equip][1] * block[1] * block[2] * 5*minCompHeight*minCompWidth/(self.width*self.height)                              # how much flavor would that size generator have?
                     if self.flavor[flav]/20 - attempts*5 < burden < self.flavor[flav]/5 + attempts*20:                                      # is it a reasonable amount of flavor?
-                        self.equipment.append({'eindex': block[0], 'width': block[1], 'height': block[2], 'type': equip, 'flavor': flav, 'inv': equipmentLoot[equip]})
+                        self.equipment.append({'eindex': block[0], 'width': block[1], 'height': block[2], 'type': equip, 'flavor': flav, 'inv': loot(equipmentLoot[equip]), 'power': equipmentPower[equip]})
                         print equip, "fits just fine!  It has a burden of", burden, "out of a total", flav, "of", self.flavor[flav]
                         for f in equipmentFlavors[flav][equip][0].flavors.keys():                           # go through all flavors for that equipment, [equip][0] is the Tile object
                             self.flavored[f] += equipmentFlavors[f][equip][1] * block[1] * block[2]         # add tile flavor * area to self.flavor/ed
@@ -775,10 +932,9 @@ class Component(object):
                 if attempts >= 50:
                     equip = equipmentFlavors[flav].keys()[randint(0,len(equipmentFlavors[flav].keys())-1)]      # whatever, fine, just place it
                     print "No equipment wants to go here, so let's just put this", equip
-                    self.equipment.append({'eindex': block[0], 'width': block[1], 'height': block[2], 'type': equip, 'flavor': flav, 'inv': equipmentLoot[equip]})
+                    self.equipment.append({'eindex': block[0], 'width': block[1], 'height': block[2], 'type': equip, 'flavor': flav, 'inv': loot(equipmentLoot[equip]), 'power': equipmentPower[equip]})
                     for f in equipmentFlavors[flav][equip][0].flavors.keys():
                         self.flavored[f] += equipmentFlavors[f][equip][1] * block[1] * block[2]
-
 
     def __init__(self, space, station, cradix, half_width, half_height, flavor, doors, nsprob, ewprob):
         self.space = space
@@ -792,7 +948,7 @@ class Component(object):
         self.half_height = half_height
         self.width = 2 * half_width + 1
         self.height = 2 * half_height + 1
-        self.flavor = season(flavor.copy(), self.width*self.height)        # the flavor the component wants to have (mutate it from that provided by the spawn source)
+        self.flavor = season(flavor.copy())        # the flavor the component wants to have (mutate it from that provided by the spawn source)
         print "This component's flavors will be", self.flavor
         self.index = (cradix[0] - 2 * half_width if cradix[2] == 'e' else cradix[0] if cradix[2] == 'w' \
         else cradix[0] - half_width, cradix[1] if cradix[2] == 'n' else cradix[1] - 2 * half_height \
@@ -858,7 +1014,7 @@ class NSComponent(Component):
                 if eokay and randint(0,1) == 1:       # do those start at the east?
                     if is_character(self.space, (x+cwidth-1,y+spot), '#') and not is_character(self.space, (x,y+spot+1), 'C') \
                        and not is_character(self.space, (x,y+spot-1), 'C') and not is_character(self.space, (x+cwidth-1,y+spot-1), 'C') \
-                       and not is_character(self.space, (x+cwidth-1,y+spot+1), 'C'):
+                       and not is_character(self.space, (x+cwidth-1,y+spot+1), 'C') and not is_character(self.space, (x+cwidth+1,y+spot), '#'):
                         cl = randint(cwidth/3, cwidth*2/3)
                         m = x+cwidth-1
                         n = y+spot
@@ -874,7 +1030,7 @@ class NSComponent(Component):
                 elif wokay:                       # or west?
                     if is_character(self.space, (x,y+spot), '#') and not is_character(self.space, (x,y+spot+1), 'C') \
                        and not is_character(self.space, (x,y+spot-1), 'C') and not is_character(self.space, (x+cwidth-1,y+spot-1), 'C') \
-                       and not is_character(self.space, (x+cwidth-1,y+spot+1), 'C'):
+                       and not is_character(self.space, (x+cwidth-1,y+spot+1), 'C') and not is_character(self.space, (x-2,y+spot), '#'):
                         cl = randint(cwidth/3, cwidth*2/3)
                         m = x
                         n = y+spot
@@ -926,7 +1082,7 @@ class NSComponent(Component):
                 if cl != cheight:
                     space[(m,n+cl)] = 'c'            # dead-ends get lowercase c
                     deadends.append((m,n+cl))
-                else:
+                elif not is_character(self.space, (m,n+cl+2), '#'):
                     newdoors.append((m,n+cl+1))
         for sd in sdoors:               # place corridors spawned by south doors
             m, n = sd
@@ -938,7 +1094,7 @@ class NSComponent(Component):
                 if cl != cheight:
                     space[(m,n-cl)] = 'c'
                     deadends.append((m,n-cl))
-                else:
+                elif not is_character(self.space, (m,n-cl-2), '#'):
                     newdoors.append((m,n-cl-1))
         if random() < nsprob or self.station.component_count == 1:
             while maincorridors > 0:        # place any other main corridors at random
@@ -946,7 +1102,7 @@ class NSComponent(Component):
                 if cradix[2] == 's':       # do they start at the north, to mirror the door-spawned southern corridors?
                     if is_character(space, (x+spot,y), '#') and not is_character(space, (x+spot+1,y), 'C') \
                        and not is_character(space, (x+spot-1,y), 'C') and not is_character(space, (x+spot-1,y+cheight-1), 'C') \
-                       and not is_character(space, (x+spot+1,y+cheight-1), 'C'):
+                       and not is_character(space, (x+spot+1,y+cheight-1), 'C'): # and not is_character(self.space, (x+spot,y-2), '#'):
                         cl = min(randint(cheight/5, cheight*9/5), cheight)
                         for c in range(cl):
                             space[(x+spot,y+c)] = 'C'
@@ -955,12 +1111,12 @@ class NSComponent(Component):
                         if cl != cheight:
                             space[(x+spot,y+cl-1)] = 'c'
                             deadends.append((x+spot,y+cl-1))
-                        else:
+                        elif not is_character(self.space, (x+spot,y+cl+1), '#'):
                             newdoors.append((x+spot,y+cl))
                 elif cradix[2] == 'n':                       # or at the south, to mirror the door-spawned norther corridors?
                     if is_character(space, (x+spot,y+cheight-1), '#') and not is_character(space, (x+spot+1,y), 'C') \
                        and not is_character(space, (x+spot-1,y), 'C') and not is_character(space, (x+spot-1,y+cheight-1), 'C') \
-                       and not is_character(space, (x+spot+1,y+cheight-1), 'C'):
+                       and not is_character(space, (x+spot+1,y+cheight-1), 'C'): # and not is_character(self.space, (x+spot,y+cheight+1), '#'):
                         cl = min(randint(cheight/5, cheight*9/5), cheight)
                         for c in range(cl):
                             space[(x+spot,y+cheight-c-1)] = 'C'
@@ -969,7 +1125,7 @@ class NSComponent(Component):
                         if cl != cheight:
                             space[(x+spot,y+cheight-cl)] = 'c'
                             deadends.append((x+spot,y+cheight-cl))
-                        else:
+                        elif not is_character(self.space, (x+spot,y+cheight-cl-2), '#'):
                             newdoors.append((x+spot,y+cheight-cl-1))
         self.prune_doors(newdoors)
         if newdoors:
@@ -1043,7 +1199,7 @@ class WEComponent(Component):
                 if sokay and randint(0,1) == 1:       # do those start at the south?
                     if is_character(self.space, (x+spot,y+cheight-1), '#') and not is_character(self.space, (x+spot+1,y), 'C') \
                        and not is_character(self.space, (x+spot-1,y), 'C') and not is_character(self.space, (x+spot-1,y+cheight-1), 'C') \
-                       and not is_character(self.space, (x+spot+1,y+cheight-1), 'C'):
+                       and not is_character(self.space, (x+spot+1,y+cheight-1), 'C') and not is_character(self.space, (x+spot,y+cheight+1), '#'):
                         cl = randint(cheight/3, cheight*2/3)
                         m = x+spot
                         n = y+cheight-1
@@ -1059,7 +1215,7 @@ class WEComponent(Component):
                 elif nokay:                       # or north?
                     if is_character(self.space, (x+spot,y), '#') and not is_character(self.space, (x+spot+1,y), 'C') \
                        and not is_character(self.space, (x+spot-1,y), 'C') and not is_character(self.space, (x+spot-1,y+cheight-1), 'C') \
-                       and not is_character(self.space, (x+spot+1,y+cheight-1), 'C'):
+                       and not is_character(self.space, (x+spot+1,y+cheight-1), 'C') and not is_character(self.space, (x+spot,y-2), '#'):
                         cl = randint(cheight/3, cheight*2/3)
                         n = y
                         m = x+spot
@@ -1111,7 +1267,7 @@ class WEComponent(Component):
                 if cl != cwidth:
                     space[(m+cl,n)] = 'c'            # dead-ends get lowercase c
                     deadends.append((m+cl,n))
-                else:
+                elif not is_character(self.space, (m+cl+2,n), '#'):
                     newdoors.append((m+cl+1,n))
         for ed in edoors:               # place corridors spawned by east doors
             m, n = ed
@@ -1123,7 +1279,7 @@ class WEComponent(Component):
                 if cl != cwidth:
                     space[(m-cl,n)] = 'c'
                     deadends.append((m-cl,n))
-                else:
+                elif not is_character(self.space, (m-cl-2,n), '#'):
                     newdoors.append((m-cl-1,n))
         if random() < ewprob or self.station.component_count == 1:
             while maincorridors > 0:        # place any other main corridors at random
@@ -1131,7 +1287,7 @@ class WEComponent(Component):
                 if cradix[2] == 'e':       # do they start at the west, to mirror the door-spawned eastern corridors?
                     if is_character(space, (x,y+spot), '#') and not is_character(space, (x,y+spot+1), 'C') \
                        and not is_character(space, (x,y+spot-1), 'C') and not is_character(space, (x+cwidth-1,y+spot-1), 'C') \
-                       and not is_character(space, (x+cwidth-1,y+spot+1), 'C'):
+                       and not is_character(space, (x+cwidth-1,y+spot+1), 'C'): # and not is_character(self.space, (x-2,y+spot), '#'):
                         cl = min(randint(cwidth/5, cwidth*9/5), cwidth)
                         for c in range(cl):
                             space[(x+c,y+spot)] = 'C'
@@ -1140,12 +1296,12 @@ class WEComponent(Component):
                         if cl != cwidth:
                             space[(x+cl-1,y+spot)] = 'c'
                             deadends.append((x+cl-1,y+spot))
-                        else:
+                        elif not is_character(self.space, (x+cl+1,y+spot), '#'):
                             newdoors.append((x+cl,y+spot))
                 elif cradix[2] == 'w':                       # or at the east, to mirror the door-spawned western corridors?
                     if is_character(space, (x+cwidth-1,y+spot), '#') and not is_character(space, (x,y+spot+1), 'C') \
                        and not is_character(space, (x,y+spot-1), 'C') and not is_character(space, (x+cwidth-1,y+spot-1), 'C') \
-                       and not is_character(space, (x+cwidth-1,y+spot+1), 'C'):
+                       and not is_character(space, (x+cwidth-1,y+spot+1), 'C'): # and not is_character(self.space, (x+cwidth+1,y+spot), '#'):
                         cl = min(randint(cwidth/5, cwidth*9/5), cwidth)
                         for c in range(cl):
                             space[(x+cwidth-c-1,y+spot)] = 'C'
@@ -1154,7 +1310,7 @@ class WEComponent(Component):
                         if cl != cwidth:
                             space[(x+cwidth-cl,y+spot)] = 'c'
                             deadends.append((x+cwidth-cl,y+spot))
-                        else:
+                        elif not is_character(self.space, (x+cwidth-cl-2,y+spot), '#'):
                             newdoors.append((x+cwidth-cl-1,y+spot))
         self.prune_doors(newdoors)
         if newdoors:
@@ -1174,7 +1330,9 @@ class WEComponent(Component):
 grid = Grid()
 gameDisplay.fill(backgroundColor)     # and a blank image window
 
-stations.append(Station(outerSpace, (0, 0, cardinals[randint(0, 3)]), season(defaultFlavor, 4*minCompWidth*minCompHeight)))  # (what region?, (origin x,origin y,from what direction?), what flavors?)
+stations.append(Station(outerSpace, (0, 0, cardinals[randint(0, 3)]), season(defaultFlavor)))  # (what region?, (origin x,origin y,from what direction?), what flavors?)
+
+player = Person(outerSpace, stations[0].enter(), [playerImage, playerWalk1, playerWalk2, playerAction], [])
 
 grid.update(wIndex, winZoom, outerSpace)              # put that space on the screen
 
@@ -1182,6 +1340,10 @@ game_loop(mouse, grid, wIndex, winZoom, outerSpace)  # run the game until the us
 pygame.quit()  # if by some miracle you get here without that happening, quit immediately omg
 quit()
 
-#Do:  Add more equipment! (Loot, what else?)  Make UI/controls/people/equipment rules!
+# Do:  Fix airlocks from nearby comps sometimes being orthogonal?  Make UI/controls/people/equipment rules!
 
-# What other flavors?  Armory?  Science?  Propulsion?
+# Make solar arrays?  Make transportation (roboferry? jetpack zipline?
+# Other flavors?  Armory?  Science?  Propulsion?  Other resources?  Lubricants? Insulation?
+# Items?  Pack?  Keycard?  Jetpack/autobot? Angle grinder?  Welder?
+# Rally NPCs: Proximity to liked characters.  Enjoyable work.  Childcare?  Shared victories?
+# Crises: Space storms?  Equipment failures.  Boredom? Drama.  Theft?  Of "medicine"?
