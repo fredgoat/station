@@ -39,12 +39,12 @@ os.environ['SDL_VIDEO_WINDOW_POS'] = "%d,%d" % (winLocX, winLocY)
 import pygame
 pygame.init()
 
-branchPersistence = 0.9     # corridor branches persist (or die) by a power of this
-compFreq         = 0.9     # probability that a door will actually spawn a component, rather than become exterior
+branchPersistence = 0.8     # corridor branches persist (or die) by a power of this
+compFreq         = 0.8     # probability that a door will actually spawn a component, rather than become exterior
 minCompHeight   = 4       # component dimensions
 minCompWidth    = 4
-maxCompHeight   = 10
-maxCompWidth    = 10
+maxCompHeight   = 12
+maxCompWidth    = 12
 bigCompFreq     = 0.15    # how often are comps bigger than max & by what factor?
 compMultiplier = 2
 
@@ -54,10 +54,13 @@ defaultFlavor = {'power':500, 'cargo':0, 'quarters':-500, 'life support':500, 'm
                  'command':-700, 'reclamation':-500, 'manufacture':-700}
 equipmentFlavors = {'power':{}, 'cargo':{}, 'quarters':{}, 'life support':{}, 'medical':{}, 'hydroponics':{}, \
                  'command':{}, 'reclamation':{}, 'manufacture':{}}        # this is each flavor's equipment value per tile, and a pointer to that equipment
-equipmentLoot = {'converter': [('nothing', 1, (0,0))], 'battery': [('nothing', 1, (0,0))], \
-                 'thermoregulator': [('nothing', 1, (0,0))], 'recycler':[('nothing', 1, (0,0))], \
-                 'suppressor':[('nothing', 1, (0,0))], 'pressurizer':[('nothing', 1, (0,0))], \
-                 'dehumidifier':[('nothing', 0.25, (0,0)), ('water', 0.75, (0,3))], \
+equipmentLoot = {'converter': [('nothing', 1, (0,0))], \
+                 'battery': [('nothing', 1, (0,0))], \
+                 'thermoregulator': [('nothing', 1, (0,0))], \
+                 'recycler':[('nothing', 1, (0,0))], \
+                 'suppressor':[('nothing', 0.3, (0,0)), ('electrolytes', 0.7, (1,3))], \
+                 'pressurizer':[('nothing', 1, (0,0))], \
+                 'dehumidifier':[('nothing', 0.25, (0,0)), ('water', 0.75, (1,3))], \
                  'infirmary':[('nothing', 0.1, (0,0)), ('food', 0.5, (1,3)), ('water', 0.7, (1,4)), ('medicine', 0.95, (1,5)), ('electrolytes', 0.6, (1,2))], \
                  'medstation':[('nothing', 0.5, (0,0)), ('food', 0.1, (1,3)), ('water', 0.6, (1,4)), ('medicine', 0.8, (1,9))], \
                  'farm':[('nothing', 0.6, (0,0)), ('food', 0.75, (1,7)), ('water', 0.2, (1,3)), ('medicine', 0.1, (1,3))], \
@@ -102,7 +105,8 @@ equipmentLoot = {'converter': [('nothing', 1, (0,0))], 'battery': [('nothing', 1
                                ('food', 0.3, (1,4)), ('water', 0.5, (1,3)), ('medicine', 0.1, (1,2))], \
                  'refectory':[('nothing', 0.1, (0,0)), ('trash', 0.1, (1,2)), \
                                ('food', 0.6, (1,8)), ('water', 0.6, (1,6)), ('medicine', 0.05, (1,2))], \
-                 'sensors':[('nothing', 1, (0,0))], 'comms':[('nothing', 1, (0,0))], \
+                 'sensors':[('nothing', 1, (0,0))], \
+                 'comms':[('nothing', 1, (0,0))], \
                  'bridge':[('nothing', 0.1, (0,0)), ('screens', 0.05, (1,3)), ('batteries', 0.1, (1,3)), ('trash', 0.1, (1,3)), \
                                ('food', 0.2, (1,2)), ('water', 0.4, (1,3)), ('medicine', 0.1, (1,2))]}
                                         # lists of (name, weight, (min, max)) for loot(stuff) - min & max CAN be floats
@@ -159,33 +163,33 @@ class Tile(object):
             equipmentFlavors[flavor][name] = (self, flavors[flavor])        # add a tuple of (a pointer back to yourself, and your flavor strength)
 
 
-converter = Tile('converter', 'converter tile.bmp', (30,30), {'power':3})               # power/voltage converters
-battery = Tile('battery', 'battery tile.bmp', (30,30), {'power':2})                     # NiH2 battery
-thermoregulator = Tile('thermoregulator', 'thermoregulator tile.bmp', (30,30), {'life support':10})
-recycler = Tile('recycler', 'recycler tile.bmp', (30,30), {'life support':1})           # atmospheric/oxygen recycler
-pressurizer = Tile('pressurizer', 'pressurizer tile.bmp', (30,30), {'life support':2})    # pressure control
-suppressor = Tile('suppressor', 'suppressor tile.bmp', (30,30), {'life support':20})      # fire suppression system
-dehumidifier = Tile('dehumidifier', 'dehumidifier tile.bmp', (10,10), {'life support':100})
-infirmary = Tile('infirmary', 'infirmary tile.bmp', (30,30), {'medical':1})
-medstation = Tile('medstation', 'medstation tile.bmp', (10,10), {'medical':100})
-farm = Tile('farm', 'farm tile.bmp', (30,30), {'hydroponics':5})               # algae farm
-box = Tile('box', 'box tile.bmp', (10,10), {'hydroponics':50})                # grow box
-purifier = Tile('purifier', 'purifier tile.bmp', (30,30), {'hydroponics':2})       # water purifier
-extruder = Tile('extruder', 'extruder tile.bmp', (30,30), {'manufacture':5})       # wire extruder
-fabricator = Tile('fabricator', 'fabricator tile.bmp', (30,30), {'manufacture':2})   # component fabricator
-assembler = Tile('assembler', 'assembler tile.bmp', (30,30), {'manufacture':1})     # circuit assembler
-furnace = Tile('furnace', 'furnace tile.bmp', (30,30), {'reclamation':1})         # metal/silica furnace
-mold = Tile('mold', 'mold tile.bmp', (30,30), {'reclamation':1})               # plastic mold
-electrolyzer = Tile('electrolyzer', 'electrolyzer tile.bmp', (30,30), {'reclamation':2})
-hold = Tile('hold', 'hold tile.bmp', (30,30), {'cargo':20})
-locker = Tile('locker', 'locker tile.bmp', (30,30), {'cargo':100})
-trashed = Tile('trashed', 'trashed tile.bmp', (30,30), {'cargo':1})
-cabin = Tile('cabin', 'cabin tile.bmp', (30,30), {'quarters':50})               # boss's cabin
-dormitory = Tile('dormitory', 'dormitory tile.bmp', (30,30), {'quarters':5})
-refectory = Tile('refectory', 'refectory tile.bmp', (30,30), {'quarters':30})
-sensors = Tile('sensors', 'sensors tile.bmp', (30,30), {'command':20})
-comms = Tile('comms', 'comms tile.bmp', (30,30), {'command':5})
-bridge = Tile('bridge', 'bridge tile.bmp', (30,30), {'command':100})
+converter = Tile('converter', 'converter tile.bmp', (30,30), {'power':3})               # c = power/voltage converters
+battery = Tile('battery', 'battery tile.bmp', (30,30), {'power':3})                     # b = NiH2 battery
+thermoregulator = Tile('thermoregulator', 'thermoregulator tile.bmp', (30,30), {'life support':5})  # t
+recycler = Tile('recycler', 'recycler tile.bmp', (30,30), {'life support':1})           # o = atmospheric/oxygen recycler
+pressurizer = Tile('pressurizer', 'pressurizer tile.bmp', (30,30), {'life support':2})    # p = pressure control
+suppressor = Tile('suppressor', 'suppressor tile.bmp', (30,30), {'life support':20})      # s = fire suppression system
+dehumidifier = Tile('dehumidifier', 'dehumidifier tile.bmp', (10,10), {'life support':100}) # d
+infirmary = Tile('infirmary', 'infirmary tile.bmp', (30,30), {'medical':1})         # i
+medstation = Tile('medstation', 'medstation tile.bmp', (10,10), {'medical':100})    # +
+farm = Tile('farm', 'farm tile.bmp', (30,30), {'hydroponics':5})               # a = algae farm
+box = Tile('box', 'box tile.bmp', (10,10), {'hydroponics':50})                # g = grow box
+purifier = Tile('purifier', 'purifier tile.bmp', (30,30), {'hydroponics':2})       # w = water purifier
+extruder = Tile('extruder', 'extruder tile.bmp', (30,30), {'manufacture':5})       # x = wire extruder
+fabricator = Tile('fabricator', 'fabricator tile.bmp', (30,30), {'manufacture':2})   # * = component fabricator
+assembler = Tile('assembler', 'assembler tile.bmp', (30,30), {'manufacture':1})     # & = circuit assembler
+furnace = Tile('furnace', 'furnace tile.bmp', (30,30), {'reclamation':1})         # f = metal/silica furnace
+mold = Tile('mold', 'mold tile.bmp', (30,30), {'reclamation':1})               # m = plastic mold
+electrolyzer = Tile('electrolyzer', 'electrolyzer tile.bmp', (30,30), {'reclamation':2})    # e
+hold = Tile('hold', 'hold tile.bmp', (30,30), {'cargo':20})                             # h
+locker = Tile('locker', 'locker tile.bmp', (30,30), {'cargo':100})                      # l
+trashed = Tile('trashed', 'trashed tile.bmp', (30,30), {'cargo':1})                     # ~
+cabin = Tile('cabin', 'cabin tile.bmp', (30,30), {'quarters':50})               # $ = boss's cabin
+dormitory = Tile('dormitory', 'dormitory tile.bmp', (30,30), {'quarters':5})    # q
+refectory = Tile('refectory', 'refectory tile.bmp', (30,30), {'quarters':30})   # r
+sensors = Tile('sensors', 'sensors tile.bmp', (30,30), {'command':20})          # @
+comms = Tile('comms', 'comms tile.bmp', (30,30), {'command':5})                 # %
+bridge = Tile('bridge', 'bridge tile.bmp', (30,30), {'command':100})            # !
 
 
 drawnTiles = {'#': defaultTile, 'C': corridorTile}
@@ -207,12 +211,14 @@ class Sprite(object):
 class Person(Sprite):
     def __init__(self, space, coords, images, inventory):
         Sprite.__init__(self, space, coords, images)
+        self.coords = coords
         self.inventory = inventory
         self.walk_1 = images[1]
         self.walk_2 = images[2]
         self.action = images[3]
         self.mode = 0
         self.wardrobe = [self.image, self.walk_1, self.walk_2, self.action]
+        self.path = []
 
 
 def check_return_not_none(func):
@@ -230,8 +236,16 @@ def check_return_not_none(func):
 
     return decorated_function
 
-def game_loop(mouse, grid, index, zoom, space):
+def game_loop(mouse, grid, index, zoom, player, space):
+    timer = 0
     while True:
+
+        timer = timer%20+1
+        if player.path and timer == 1:
+            player.coords = player.path.pop(0)
+            grid.update(index, zoom, space)
+
+        x, y = pygame.mouse.get_rel()    # if nothing else, mark this moment to measure mouse movement from (dump relative movement up to this point)
         for event in pygame.event.get():  # go as long as player doesn't hit the upper right x
             if event.type == pygame.QUIT:
                 pygame.quit()
@@ -244,11 +258,30 @@ def game_loop(mouse, grid, index, zoom, space):
                 elif event.type == pygame.MOUSEBUTTONUP:
                     mouse[event.button] = 0
                     mouse['pos'] = event.pos
+                    h, k = mouse['pos']
+                    coords = (int(round(float(h) / zoom + index[0] - 0.5)), int(round(float(k) / zoom + index[1] - 0.5)))
+                    if event.button == 1:           # if the user clicks on the screen
+                        if what_equipment(coords) == 'corridor':
+                            print "corridor"
+                            player.path = path(player.coords, coords, 'corridor', space)
+                        elif what_equipment(coords) == 'door':
+                            print "door"
+                            doorpath = filter(lambda x: x and what_equipment((x[-1][0],x[-1][1])) == 'corridor', \
+                                                 [path(player.coords, go(coords,'n'), 'corridor', space), \
+                                                  path(player.coords, go(coords,'s'), 'corridor', space), \
+                                                  path(player.coords, go(coords,'e'), 'corridor', space), \
+                                                  path(player.coords, go(coords,'w'), 'corridor', space)])
+                            if doorpath:  player.path = doorpath.pop()
+                        elif what_equipment(coords) == 'space':
+                            print "space"
+                        elif what_equipment(coords) == 'component':
+                            print "component"
+                        else:
+                            print what_equipment(coords)['type']
                 elif event.type == pygame.MOUSEMOTION:
                     mouse['pos'] = event.pos
 
                 if mouse[1]:
-                    x, y = pygame.mouse.get_rel()
                     index = (index[0] - min(max(float(x) / zoom, -10), 10), index[1] - min(max(float(y) / zoom, -10), 10))
                     grid.update(index, zoom, space)
                 elif mouse[4] and zoom > minZoom:
@@ -270,8 +303,7 @@ def game_loop(mouse, grid, index, zoom, space):
 
 
         pygame.display.update()  # redraw everything
-        pygame.mouse.get_rel()      # mark this moment to measure mouse movement from (dump relative movement up to this point)
-        clock.tick(120)  # allow 0.12 seconds to pass
+        clock.tick(60)  # allow 0.06 seconds to pass
 
 
 class Grid(object):
@@ -292,15 +324,12 @@ class Grid(object):
         for station in nearby:
             gameDisplay.blit(pygame.transform.scale(station.image, (station.width*zoom, station.height*zoom)), \
                              (round((station.index[0] - index[0]) * zoom), round((station.index[1] - index[1]) * zoom)))
-        gameDisplay.blit(pygame.transform.scale(player.wardrobe[player.mode], (zoom, zoom)), \
-                         (round((player.coords[0] - index[0]) * zoom), round((player.coords[1] - index[1]) * zoom)))
+        gameDisplay.blit(pygame.transform.scale(playerOne.wardrobe[playerOne.mode], (zoom, zoom)), \
+                         (round((playerOne.coords[0] - index[0]) * zoom), round((playerOne.coords[1] - index[1]) * zoom)))
 
 
 def loot(stuff):                # function takes a list of tuples (name, weight, (min, max)) and returns a list of tuples of names & quantity
-    total = 0
-    for i in stuff:
-        total += i[1]
-    r = random()*total
+    r = random()
     swag = []
     for i in stuff:
         if r < i[1] and not i[0] == 'nothing':
@@ -332,6 +361,36 @@ def go(coords, direction):
         return (coords[0] - 1, coords[1])
     else:
         print "invalid direction"
+
+
+def path(start, end, pathtype, space=outerSpace):   # try to find a path of the chosen type from start to end
+    spots = [(end[0], end[1], 0)]
+    tries = 0
+    solution = []
+    for spot in spots:
+        tries += 1
+        if tries > 500:
+            return False
+        adjacent = filter(lambda x: what_equipment((x[0],x[1]))==pathtype, [(spot[0], spot[1]+1, spot[2]+1), (spot[0]+1, spot[1], spot[2]+1), \
+                    (spot[0], spot[1]-1, spot[2]+1), (spot[0]-1, spot[1], spot[2]+1)])
+        if spot[0] == start[0] and spot[1] == start[1]:
+            solution.append(spot)
+            for sol in solution:
+                if sol[0] == end[0] and sol[1] == end[1]:
+                    solution.pop(0)
+                    return solution
+                else:
+                    solution.append(sorted(filter(lambda x: x[0] == sol[0] and x[1] in [sol[1]+1,sol[1]-1] \
+                                    or x[1] == sol[1] and x[0] in [sol[0]+1,sol[0]-1], spots), key=lambda x: x[2])[0])
+        for adj in adjacent:
+            repeat = False
+            for spot in spots:
+                if spot[0] == adj[0] and spot[1] == adj[1] and spot[2] < adj[2]:
+                    repeat = True
+                    break
+            if what_equipment((adj[0],adj[1])) == pathtype and not repeat:
+                spots.append(adj)
+    return False
 
 
 def replace(space, index, extremity, target, replacement):
@@ -377,20 +436,26 @@ def is_any(space, index, width, height, character):  # are there any of this thi
     return False
 
 
-def what_equipment(space, coords):      # returns 'door', 'corridor', or a pointer to the equipment at that point
+def what_equipment(coords, stationlist=stations, space=outerSpace):      # returns 'door', 'corridor', or a pointer to the equipment at that point
     nearby = filter(lambda x: x.space == space and coords[0]-500 < x.stradix[0] < coords[0]+(winWidth+1000)*maxZoom \
-                        and coords[1]-500 < x.stradix[1] < coords[1]+(winHeight+1000)*maxZoom, stations)
+                        and coords[1]-500 < x.stradix[1] < coords[1]+(winHeight+1000)*maxZoom, stationlist)
     for station in nearby:
-        for comp in station.components:
-            for equip in comp.equipment:
-                if equip['eindex'][0] <= coords[0] < equip['eindex'][0] + equip['width'] and \
-                        equip['eindex'][1] <= coords[1] < equip['eindex'][1] + equip['height']:
-                    return equip
         for door in station.doors:
             if coords == door:
                 return 'door'
         if is_character(station.space, coords, 'C'):
             return 'corridor'
+        for comp in station.components:
+            if comp.index[0] <= coords[0] < comp.index[0] + comp.width and \
+                    comp.index[1] <= coords[1] < comp.index[1] + comp.height:
+                for equip in comp.equipment:
+                    if equip['eindex'][0] <= coords[0] < equip['eindex'][0] + equip['width'] and \
+                            equip['eindex'][1] <= coords[1] < equip['eindex'][1] + equip['height']:
+                        return equip
+        if is_character(station.space, coords, '#'):
+            return 'component'
+    else:
+        return 'space'
 
 
 def block_off(space, index, half_width, half_height):
@@ -716,6 +781,7 @@ class Station(object):
             else cradix[0] - half_width, cradix[1] if cradix[2] == 'n' else cradix[1] - 2 * half_height \
             if cradix[2] == 's' else cradix[1] - half_height)
             x, y = index             # index = upper left corner; cradix = centerpoint spawned /from/ & direction spawned /from/
+            print "Let's try an index of", index
             if self.component_count > 0 and not doors:
                 print "No doors!  Time to stop."
                 break
@@ -723,8 +789,14 @@ class Station(object):
                                          (index[1] <= d[1] <= index[1] + cheight - 1) or \
                                          (d[1] == index[1] - 1 or d[1] == index[1] + cheight) and \
                                          (index[0] <= d[0] <= index[0] + cwidth - 1), doors)
-            if is_area(self.space, (index[0] - 1, index[1] - 1), cwidth + 2, cheight + 2) and not (self.component_count > 0 and not realdoors): # not blocked? still doors left?
-                if random() < compFreq or self.component_count == 0:
+            if not realdoors and self.component_count > 0:
+                fakedoors = []
+                for d in doors:
+                    if d not in realdoors:
+                        fakedoors.append(d)
+                print "No real doors, since we removed", fakedoors
+            elif is_area(self.space, (index[0] - 1, index[1] - 1), cwidth + 2, cheight + 2) and not (self.component_count > 0 and not realdoors): # not blocked? still doors left?
+                if random()**(self.component_count/10) > compFreq:
                     self.component_count += 1
                     print "Component", self.component_count, "forming on attempt", crashcount                             ####
                     doors = realdoors
@@ -732,7 +804,13 @@ class Station(object):
                         self.components.append(NSComponent(self.space, self, cradix, half_width, half_height, flavor, doors, nsprob, ewprob))
                     else:
                         self.components.append(WEComponent(self.space, self, cradix, half_width, half_height, flavor, doors, nsprob, ewprob))
+                else:
+                    print "Component", self.component_count+1, "decided not to form"
                 break
+            else:
+                print "Component blocked!"
+        if crashcount * (1+self.component_count) >= 100:
+            print "Gave up on spawning component", self.component_count+1, "after", crashcount, "tries"
 
     def update_equipment(self):
         self.power_change, self.power_storage, self.oxygen_change, self.air_capacity, self.pressure_change, self.humidity_change = 0, 0, 0, 0, 0, 0
@@ -773,13 +851,23 @@ class Station(object):
                 south = max(south, door[1])
         return (west, north, east, south)
 
-    def enter(self):
+    def enter(self):            # this will return the corridor side of an external airlock
         door = self.doors[int(random()*len(self.doors))]
         entries = []
-        for dir in cardinals:
-            if what_equipment(self.space, go(door, dir)) == 'corridor':
-                entries.append(go(door, dir))
-        return entries[int(random()*len(entries))]
+        for door in self.doors:
+            for d in xrange(4):
+                if what_equipment(go(door, cardinals[d]), [self], self.space) == 'corridor' and \
+                        what_equipment(go(door, cardinals[(d+2)%4])) != 'corridor':
+                    entries.append(go(door, cardinals[d]))
+        if entries:
+            return entries[int(random()*len(entries))]
+        else:
+            for door in self.doors:
+                for d in xrange(4):
+                    if what_equipment(go(door, cardinals[d]), [self], self.space) == 'corridor':
+                        entries.append(go(door, cardinals[d]))
+                if entries:
+                    return entries[int(random()*len(entries))]
 
 
     def __init__(self, space, stradix, flavor):
@@ -1051,9 +1139,9 @@ class NSComponent(Component):
             self.doors += newdoors
             direc = ['w', 'e']
             if not filter(lambda coords: coords[0]==x-1,self.doors):          # any west doors?
-                direc.remove('w')
-            if not filter(lambda coords: coords[0]==x+cwidth,self.doors):     # or east doors?
                 direc.remove('e')
+            if not filter(lambda coords: coords[0]==x+cwidth,self.doors):     # or east doors?
+                direc.remove('w')
             while direc:
                 tion = direc.pop(randint(0,len(direc)-1))                    # pick a direction and spawn some components!
                 spawnx = self.index[0] - 2 if tion == 'e' else self.index[0] + cwidth + 1
@@ -1236,9 +1324,9 @@ class WEComponent(Component):
             self.doors += newdoors
             direc = ['n', 's']
             if not filter(lambda coords: coords[1]==y-1,self.doors):          # any north doors?
-                direc.remove('n')
-            if not filter(lambda coords: coords[1]==y+cheight,self.doors):    # or south doors?
                 direc.remove('s')
+            if not filter(lambda coords: coords[1]==y+cheight,self.doors):    # or south doors?
+                direc.remove('n')
             while direc:
                 tion = direc.pop(randint(0,len(direc)-1))                    # pick a direction and spawn some components!
                 spawny = self.index[1] - 2 if tion == 's' else self.index[1] + cheight + 1
@@ -1332,18 +1420,18 @@ gameDisplay.fill(backgroundColor)     # and a blank image window
 
 stations.append(Station(outerSpace, (0, 0, cardinals[randint(0, 3)]), season(defaultFlavor)))  # (what region?, (origin x,origin y,from what direction?), what flavors?)
 
-player = Person(outerSpace, stations[0].enter(), [playerImage, playerWalk1, playerWalk2, playerAction], [])
+playerOne = Person(outerSpace, stations[0].enter(), [playerImage, playerWalk1, playerWalk2, playerAction], [])
 
 grid.update(wIndex, winZoom, outerSpace)              # put that space on the screen
 
-game_loop(mouse, grid, wIndex, winZoom, outerSpace)  # run the game until the user hits the x
+game_loop(mouse, grid, wIndex, winZoom, playerOne, outerSpace)  # run the game until the user hits the x
 pygame.quit()  # if by some miracle you get here without that happening, quit immediately omg
 quit()
 
-# Do:  Fix airlocks from nearby comps sometimes being orthogonal?  Make UI/controls/people/equipment rules!
+# Do:  Objectify equipment?  Do pathing to equipment.  Fix airlocks from nearby comps sometimes being orthogonal?  Make UI/NPCs/equipment rules!
 
 # Make solar arrays?  Make transportation (roboferry? jetpack zipline?
 # Other flavors?  Armory?  Science?  Propulsion?  Other resources?  Lubricants? Insulation?
 # Items?  Pack?  Keycard?  Jetpack/autobot? Angle grinder?  Welder?
 # Rally NPCs: Proximity to liked characters.  Enjoyable work.  Childcare?  Shared victories?
-# Crises: Space storms?  Equipment failures.  Boredom? Drama.  Theft?  Of "medicine"?
+# Crises: Space storms?  Meteorites, static discharge, accidents, equipment failures.  Boredom? Anxiety? Drama.  Theft?  Of "medicine"?
