@@ -1,4 +1,8 @@
-""" So basically, you spawn a component, which spawns corridors,
+""" The game loop looks for mouse and keyboard inputs.  Scrolling zooms and clicking moves the player or gives info.
+
+Everything gets blitted onto tiles or a station image which in turn get blitted onto the game window.
+
+To form a station, you spawn a component, which spawns corridors,
 which define equipment areas and spawn airlocks, which spawn more components.
 Then you fill in the equipment, according to that component's flava.
 
@@ -145,7 +149,8 @@ airlockTile = pygame.image.load('images/airlock tile.bmp').convert()
 defaultPattern = pygame.Surface((winWidth * winZoom, winHeight * winZoom))
 
 
-def patterner(background, tile, size):                      # this draws a repeating pattern out of tile images
+def patterner(background, tile, size):
+    """This draws a repeating background pattern out of tile images"""
     x = int(winWidth * winZoom / size[0] + 1)               # how many big ol' tiles fit side to side
     y = int(winHeight * winZoom / size[1] + 1)              # how many fit up and down
     for row in range(y):
@@ -154,6 +159,8 @@ def patterner(background, tile, size):                      # this draws a repea
     return background
 
 class Tile(object):
+    """A part of the background of the station"""
+
     def __init__(self, name, image, size, flavors):
         self.name = name
         self.tile = pygame.image.load('images/'+image).convert()
@@ -202,6 +209,7 @@ playerAction = pygame.image.load('images/player action.png')
 
 
 class Sprite(object):
+    """Things that are in space and have an image that isn't part of the background"""
     def __init__(self, space, coords, images):
         self.space = space
         self.coords = coords
@@ -209,6 +217,22 @@ class Sprite(object):
 
 
 class Person(Sprite):
+    """A Sprite that represents either the player or an NPC on a station"""
+    def face(self):
+        """Determines the facing of a Person based on the next element in their path"""
+        if self.path:
+            dest = self.path[0]
+            if self.coords[0] == dest[0]:
+                if self.coords[1] == dest[1]+1:
+                    self.facing = 'n'
+                elif self.coords[1] == dest[1]-1:
+                    self.facing = 's'
+            elif self.coords[1] == dest[1]:
+                if self.coords[0] == dest[0]+1:
+                    self.facing = 'w'
+                elif self.coords[0] == dest[0]-1:
+                    self.facing = 'e'
+
     def __init__(self, space, station, coords, images, inventory):
         Sprite.__init__(self, space, coords, images)
         self.station = station
@@ -220,7 +244,9 @@ class Person(Sprite):
         self.action = images[3]
         self.mode = 0
         self.wardrobe = [self.image, self.walk_1, self.walk_2, self.action]
+        self.facing = 'n'
         self.path = []
+        self.face()
 
 
 def check_return_not_none(func):
@@ -239,12 +265,23 @@ def check_return_not_none(func):
     return decorated_function
 
 def game_loop(mouse, grid, index, zoom, player, space):
+    """This is the main loop from which the game runs"""
     timer = 0
+    clickpos = (0,0)
     while True:
 
         timer = timer%20+1
-        if player.path and timer == 1:
-            player.coords = player.path.pop(0)
+        if player.path:
+            if timer == 1 and player.mode == 3:
+                player.mode = 0
+                player.coords = player.path.pop(0)
+                grid.update(index, zoom, space)
+            if timer in [6,11,16] and timer == player.mode * 5 + 6:
+                player.mode = (timer-1)/5
+                player.face()
+                grid.update(index, zoom, space)
+        else:
+            player.mode = 0
             grid.update(index, zoom, space)
 
         x, y = pygame.mouse.get_rel()    # if nothing else, mark this moment to measure mouse movement from (dump relative movement up to this point)
@@ -257,15 +294,17 @@ def game_loop(mouse, grid, index, zoom, player, space):
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     mouse[event.button] = 1
                     mouse['pos'] = event.pos
+                    clickpos = event.pos
                 elif event.type == pygame.MOUSEBUTTONUP:
                     mouse[event.button] = 0
                     mouse['pos'] = event.pos
                     h, k = mouse['pos']
                     coords = (int(round(float(h) / zoom + index[0] - 0.5)), int(round(float(k) / zoom + index[1] - 0.5)))
-                    if event.button == 1:           # if the user clicks on the screen
+                    if event.button == 1 and abs(clickpos[0] - h) < 10 and abs(clickpos[1] - k) < 10:           # if the user clicks on the screen
                         if what_equipment(coords) == 'corridor':
                             print "corridor"
                             player.path = path(player.coords, coords, 'corridor', space)
+                            player.mode = 0
                         elif what_equipment(coords) == 'airlock':
                             print "airlock"
                             doorpath = filter(lambda x: x and what_equipment((x[-1][0],x[-1][1])) == 'corridor', \
@@ -273,7 +312,9 @@ def game_loop(mouse, grid, index, zoom, player, space):
                                                   path(player.coords, go(coords,'s'), 'corridor', space), \
                                                   path(player.coords, go(coords,'e'), 'corridor', space), \
                                                   path(player.coords, go(coords,'w'), 'corridor', space)])
-                            if doorpath:  player.path = doorpath.pop()
+                            if doorpath:
+                                player.path = doorpath.pop()
+                                player.mode = 0
                         elif what_equipment(coords) == 'space':
                             print "space"
                         elif what_equipment(coords) == 'component':
@@ -281,6 +322,8 @@ def game_loop(mouse, grid, index, zoom, player, space):
                         else:
                             equip = what_equipment(coords)
                             print_thing(what_equipment(coords).type, what_equipment(coords).inv)
+                            player.path = path(player.coords, equip.access_points(), 'corridor', space)
+                            player.mode = 0
                 elif event.type == pygame.MOUSEMOTION:
                     mouse['pos'] = event.pos
 
@@ -306,7 +349,7 @@ def game_loop(mouse, grid, index, zoom, player, space):
 
 
         pygame.display.update()  # redraw everything
-        clock.tick(60)  # allow 0.06 seconds to pass
+        clock.tick(80)  # frames per second
 
 
 class Grid(object):
@@ -315,7 +358,7 @@ class Grid(object):
         pass
 
     def update(self, index, zoom, space):
-        "This wipes the screen, then fills in anything from that part of outerSpace"
+        """This wipes the screen, then fills in anything from that part of outerSpace"""
         intdex = (int(round(index[0])), int(round(index[1])))
         gameDisplay.blit(background, (0, 0))
         window = filter(lambda coords: intdex[0]-2 <= coords[0] < (winWidth+20)*zoom + intdex[0] and intdex[1]-2 <= coords[1] < (winHeight+10)*zoom + intdex[1], space.keys())
@@ -327,11 +370,19 @@ class Grid(object):
         for station in nearby:
             gameDisplay.blit(pygame.transform.scale(station.image, (station.width*zoom, station.height*zoom)), \
                              (round((station.index[0] - index[0]) * zoom), round((station.index[1] - index[1]) * zoom)))
-        gameDisplay.blit(pygame.transform.scale(playerOne.wardrobe[playerOne.mode], (zoom, zoom)), \
-                         (round((playerOne.coords[0] - index[0]) * zoom), round((playerOne.coords[1] - index[1]) * zoom)))
+        playeronex = playerOne.coords[0] - index[0] + (playerOne.mode%4)/4.0 if playerOne.facing == 'e' \
+            else playerOne.coords[0] - index[0] - (playerOne.mode%4)/4.0 if playerOne.facing == 'w' \
+            else playerOne.coords[0] - index[0]
+        playeroney = playerOne.coords[1] - index[1] + (playerOne.mode%4)/4.0 if playerOne.facing == 's' \
+            else playerOne.coords[1] - index[1] - (playerOne.mode%4)/4.0 if playerOne.facing == 'n' \
+            else playerOne.coords[1] - index[1]
+        gameDisplay.blit(pygame.transform.scale(playerOne.wardrobe[playerOne.mode if playerOne.mode < 2 \
+            else 0 if playerOne.mode==2 else playerOne.mode-1], (zoom, zoom)), \
+                         (playeronex * zoom, playeroney * zoom))
 
 
 def print_thing(name, dict):
+    """Prints the items in an inventory dict that don't equal zero"""
     no_zeros = {}
     for thing in dict:
         if dict[thing] == 0:
@@ -347,7 +398,8 @@ def print_thing(name, dict):
         print "nothing"
 
 
-def loot(stuff):                # function takes a list of tuples (name, weight, (min, max)) and returns a dict of name: quantity pairs
+def loot(stuff):
+    """Like pick, loot takes a list of tuples (name, weight, (min, max)) but returns a DICT of name: quantity pairs"""
     r = random()
     swag = {}
     for i in stuff:
@@ -356,20 +408,22 @@ def loot(stuff):                # function takes a list of tuples (name, weight,
     return swag                 # alternately, for a bell curve rather than a quadratic, use int((1+max-min)(0.5((2*random()-1)**3+1))+min)
 
 
-def pick(stuff):                # function takes a list of tuples (name, weight, (min, max)) and returns ONE name & quantity
+def pick(stuff):
+    """Like loot, pick takes a list of tuples (name, weight, (min, max)) but returns ONE tuple of (name, quantity)"""
     total = 0
     for i in stuff:
         total += i[1]
     r = random()*total
     for i in stuff:
         if r < i[1]:
-            return (int((random()**2*(i[2][1]-i[2][0]+1)) + i[2][0]), i[0])
+            return (i[0], int((random()**2*(i[2][1]-i[2][0]+1)) + i[2][0]))
             break
         else:
             r -= i[1]
 
 
 def go(coords, direction):
+    """Goes from coords one step in direction within a grid"""
     if direction == 'n':
         return (coords[0], coords[1] - 1)
     elif direction == 'e':
@@ -382,26 +436,35 @@ def go(coords, direction):
         print "invalid direction"
 
 
-def path(start, end, pathtype, space=outerSpace):   # try to find a path of the chosen type from start to end
-    spots = [(end[0], end[1], 0)]
+def path(start, ends, pathtype, space=outerSpace):
+    """Tries to find a path of the chosen character (pathtype) from start to end within a grid"""
+    if isinstance(ends, tuple):
+        end = [ends]
+    elif isinstance(ends, list):
+        end = ends
+    spots = []
+    for e in end:
+        spots.append((e[0], e[1], 0))
+    # spots = [(end[0], end[1], 0)]
     tries = 0
     solution = []
     for spot in spots:
         tries += 1
         if tries > 500:
             return False
-        adjacent = filter(lambda x: what_equipment((x[0],x[1]))==pathtype, [(spot[0], spot[1]+1, spot[2]+1), (spot[0]+1, spot[1], spot[2]+1), \
-                    (spot[0], spot[1]-1, spot[2]+1), (spot[0]-1, spot[1], spot[2]+1)])
-        if spot[0] == start[0] and spot[1] == start[1]:
+        adjacent = filter(lambda adj: what_equipment((adj[0],adj[1]))==pathtype, \
+                          [(spot[0], spot[1]+1, spot[2]+1), (spot[0]+1, spot[1], spot[2]+1), \
+                           (spot[0], spot[1]-1, spot[2]+1), (spot[0]-1, spot[1], spot[2]+1)])   # filter adj spots for the pathtype
+        if spot[0] == start[0] and spot[1] == start[1]:     # if we find the start, build a low-value solution back to end
             solution.append(spot)
             for sol in solution:
-                if sol[0] == end[0] and sol[1] == end[1]:
+                if filter(lambda e: e[0] == sol[0] and e[1] == sol[1], end):
                     solution.pop(0)
                     return solution
-                else:
-                    solution.append(sorted(filter(lambda x: x[0] == sol[0] and x[1] in [sol[1]+1,sol[1]-1] \
-                                    or x[1] == sol[1] and x[0] in [sol[0]+1,sol[0]-1], spots), key=lambda x: x[2])[0])
-        for adj in adjacent:
+                else:    # look through the elements of solution for the end, adding lowest-value adj spots back to end
+                    solution.append(sorted(filter(lambda sp: sp[0] == sol[0] and sp[1] in [sol[1]+1,sol[1]-1] \
+                                    or sp[1] == sol[1] and sp[0] in [sol[0]+1,sol[0]-1], spots), key=lambda spot: spot[2])[0])
+        for adj in adjacent:        # if we haven't found the start yet, expand the search, ignoring higher value repeats
             repeat = False
             for spot in spots:
                 if spot[0] == adj[0] and spot[1] == adj[1] and spot[2] < adj[2]:
@@ -413,6 +476,7 @@ def path(start, end, pathtype, space=outerSpace):   # try to find a path of the 
 
 
 def replace(space, index, extremity, target, replacement):
+    """Replaces the target character with the replacement within a designated rectangle of the grid"""
     x = index[0]
     y = index[1]
     width = abs(extremity[0] - x) + 1
@@ -425,6 +489,7 @@ def replace(space, index, extremity, target, replacement):
 
 
 def is_character(space, coords, character=' '):
+    """Checks if this element of the grid is blank (or the chosen character)"""
     if not coords in space.keys():
         if ' ' == character:
             return True
@@ -436,7 +501,8 @@ def is_character(space, coords, character=' '):
         return False
 
 
-def is_area(space, index, width, height, character=' '): # is this area completely blank?
+def is_area(space, index, width, height, character=' '):
+    """Like is_any, but checks if the area is COMPLETELY blank (or COVERED by the chosen character)"""
     x, y = index
     for ln in range(height):                    # is the area blocked at all?
         for pt in range(width):
@@ -445,7 +511,8 @@ def is_area(space, index, width, height, character=' '): # is this area complete
     return True
 
 
-def is_any(space, index, width, height, character):  # are there any of this thing in this area?
+def is_any(space, index, width, height, character):
+    """Like is_area, but this checks if there are ANY of this thing in the area"""
     x = index[0]
     y = index[1]
     for ln in range(height):
@@ -455,7 +522,8 @@ def is_any(space, index, width, height, character):  # are there any of this thi
     return False
 
 
-def what_equipment(coords, stationlist=stations, space=outerSpace):      # returns 'airlock', 'corridor', or a pointer to the equipment at that point
+def what_equipment(coords, stationlist=stations, space=outerSpace):
+    """Returns 'airlock', 'corridor', 'space', or a pointer to the equipment at the coords (or 'component' in weird cases)"""
     nearby = filter(lambda x: x.space == space and coords[0]-500 < x.stradix[0] < coords[0]+(winWidth+1000)*maxZoom \
                         and coords[1]-500 < x.stradix[1] < coords[1]+(winHeight+1000)*maxZoom, stationlist)
     for station in nearby:
@@ -478,6 +546,7 @@ def what_equipment(coords, stationlist=stations, space=outerSpace):      # retur
 
 
 def block_off(space, index, half_width, half_height):
+    """Turn an irregular area of undesignated component into blocks for equipment"""
     width = 2 * half_width + 1
     height = 2 * half_height + 1
     blocks = []                     # these will be tuples of (index, width, height) in which equipment can be placed
@@ -511,11 +580,11 @@ def block_off(space, index, half_width, half_height):
                     spot = (x, y)
                     way += 4
     replace(space, index, (index[0]+width-1, index[1]+height-1), '+', '#')
-    print "Blocks are", blocks                                                                                        ####
     return blocks
 
 
-def season(flavor):                                         # this boosts all existing flavors, adds some, and subtracts relative to total
+def season(flavor):
+    """This boosts all existing flavors, adds some, and subtracts relative to total"""
     seasonings = 0
     for spice in flavor.keys():
         flavor[spice] = int(448*math.atan(0.00224*flavor[spice]))  # trust me, this is great.  The big numbers get reduced good.
@@ -530,12 +599,14 @@ def season(flavor):                                         # this boosts all ex
 
 
 def flavor_add(base, addition):
+    """Adds equipment flavor to the base"""
     for spice in base.keys():
         base[spice] += addition[spice]
     return base
 
 
 def flavor_subtract(base, subtraction):
+    "Subtracts equipment flavor from the base"
     for spice in base.keys():
         base[spice] -= subtraction[spice]
     print "Subtracting used flavor of", subtraction
@@ -543,7 +614,8 @@ def flavor_subtract(base, subtraction):
 
 
 @check_return_not_none
-def flood(space, coords, target, replacement):          # this floods contiguous target characters with a replacement character
+def flood(space, coords, target, replacement):
+    """Floods contiguous target characters with a replacement character"""
     q = [coords]                                        # turn our coords into a list of one set of coords, so we can do list stuff
     if not is_character(space, coords, target):         # are we starting with the right character?
         return space
@@ -564,7 +636,8 @@ def flood(space, coords, target, replacement):          # this floods contiguous
     return space
 
 
-def entry(space, index, cwidth, cheight, airlock):    # this function gives the entry of a airlock, given its component's size and index
+def entry(space, index, cwidth, cheight, airlock):
+    """Gives the adjacent corridor coordinates of an airlock, given its component's size and index"""
     x, y = index
     m, n = airlock.coords
     if m == x-1:
@@ -580,6 +653,7 @@ def entry(space, index, cwidth, cheight, airlock):    # this function gives the 
 
 
 def corridors_linked(space, index, cwidth, cheight, airlocks):
+    """Checks if the corridors in a component are linked, starting with the airlock entries"""
     x, y = index
     linked = True
     a = airlocks[0]
@@ -596,7 +670,8 @@ def corridors_linked(space, index, cwidth, cheight, airlocks):
 
 
 @check_return_not_none
-def link_corridors(space, index, cwidth, cheight, airlocks, attempt=1):      # this fxn attempts to link the corridors in a component
+def link_corridors(space, index, cwidth, cheight, airlocks, attempt=1):
+    """Recursively attempts to link the airlock entries in a component with corridors"""
     if attempt > 20 or len(airlocks) == 0:
         return space
     x, y = index
@@ -607,9 +682,13 @@ def link_corridors(space, index, cwidth, cheight, airlocks, attempt=1):      # t
     linked = True
     a = airlocks[0]
     m, n = entry(space, index, cwidth, cheight, a)
-    if corridors_linked(space, index, cwidth, cheight, airlocks): # are they already linked?
+    if corridors_linked(space, index, cwidth, cheight, airlocks): # are all airlocks already linked?  Note that this resets corridors to 'C'
+        flood(space, (m,n), 'C', 'Z')
+        if is_any(space, index, cwidth, cheight, 'C'):          # if there are any stranded corridors, eliminate them
+            replace(space, index, (index[0]+cwidth-1,index[1]+cheight-1), 'C', '#')
+        flood(space, (m,n), 'Z', 'C')
         return space
-    else:                                                       # Or are they unlinked?  Let's fix that
+    else:                                                       # Are airlocks unlinked?  Let's fix that
         flood(space, (m,n), 'C', 'Z')                           # flood the first airlock's corridors with Zs
         unattached = filter(lambda airlock: is_character(space, entry(space, index, cwidth, cheight, airlock), 'C'), airlocks)
         attached = filter(lambda airlock: is_character(space, entry(space, index, cwidth, cheight, airlock), 'Z'), airlocks)
@@ -695,11 +774,11 @@ def link_corridors(space, index, cwidth, cheight, airlocks, attempt=1):      # t
                         r -= 1
                     for k in range(p-r):
                         space[(p-k,q)] = 'Z'
-            flood(space, (m,n), 'Z', 'C')
             if corridors_linked(space, index, cwidth, cheight, airlocks):
+                if is_any(space, index, cwidth, cheight, 'C'):    # if there are any stranded corridors, eliminate them
+                    replace(space, index, (index[0]+cwidth-1,index[1]+cheight-1), 'C', '#')
+                flood(space, (m,n), 'Z', 'C')
                 return space
-            else:               # that didn't work?!?
-                print "Oops!  Having trouble linking the corridors in the component at", index                     ####
         elif len(zways) != 0:
             for zw in zways:    # we can only see Zs from here?  Go past them and maybe we'll connect to Cs.
                 r = p
@@ -736,8 +815,10 @@ def link_corridors(space, index, cwidth, cheight, airlocks, attempt=1):      # t
                         while not is_character(space, (r,s), 'Z'):
                             space[(r,s)] = 'C'
                             r += 1
-            flood(space, (m,n), 'Z', 'C')
             if corridors_linked(space, index, cwidth, cheight, airlocks):   # did it work?
+                if is_any(space, index, cwidth, cheight, 'C'):          # if there are any stranded corridors, eliminate them
+                    replace(space, index, (index[0]+cwidth-1,index[1]+cheight-1), 'C', '#')
+                flood(space, (m,n), 'Z', 'C')
                 return space
         elif len(cways) != 0:
             for cw in cways:    # or maybe we can only see Cs?  Go past them and maybe we'll connect to Zs???
@@ -775,8 +856,10 @@ def link_corridors(space, index, cwidth, cheight, airlocks, attempt=1):      # t
                         while not is_character(space, (r,s), 'C'):
                             space[(r,s)] = 'Z'
                             r += 1
-            flood(space, (m,n), 'Z', 'C')
             if corridors_linked(space, index, cwidth, cheight, airlocks):     # did THAT work?
+                if is_any(space, index, cwidth, cheight, 'C'):          # if there are any stranded corridors, eliminate them
+                    replace(space, index, (index[0]+cwidth-1,index[1]+cheight-1), 'C', '#')
+                flood(space, (m,n), 'Z', 'C')
                 return space
         flood(space, (m,n), 'Z', 'C')  # fine!  Let's try closer to "un" and "at".
         link_corridors(space, index, cwidth, cheight, airlocks, attempt + 1)
@@ -784,8 +867,9 @@ def link_corridors(space, index, cwidth, cheight, airlocks, attempt=1):      # t
 
 
 class Station(object):
-    """Stations spawn initial components"""
+    """Stations spawn initial components and are the centers of the game"""
     def spawn_component(self, cradix, flavor, airlocks, nsprob, ewprob):
+        """Try to create a component at the coords with the airlocks given"""
         crashcount = 0
         while crashcount * (1+self.component_count) < 100:    # try this until you get it, but don't die.
             half_width  = randint(minCompWidth, maxCompWidth) / 2
@@ -800,9 +884,7 @@ class Station(object):
             else cradix[0] - half_width, cradix[1] if cradix[2] == 'n' else cradix[1] - 2 * half_height \
             if cradix[2] == 's' else cradix[1] - half_height)
             x, y = index             # index = upper left corner; cradix = centerpoint spawned /from/ & direction spawned /from/
-            print "Let's try an index of", index
             if self.component_count > 0 and not airlocks:
-                print "No airlocks!  Time to stop."
                 break
             realairlocks = filter(lambda a: (a.coords[0] == index[0] - 1 or a.coords[0] == index[0] + cwidth) and \
                                          (index[1] <= a.coords[1] <= index[1] + cheight - 1) or \
@@ -813,7 +895,6 @@ class Station(object):
                 for a in airlocks:
                     if a not in realairlocks:
                         fakeairlocks.append(a)
-                print "No real airlocks, since we removed", fakeairlocks
             elif is_area(self.space, (index[0] - 1, index[1] - 1), cwidth + 2, cheight + 2) and not \
                     (self.component_count > 0 and not realairlocks) and not \
                     filter(lambda a: a.coords in [(index[0]-1,index[1]-1), (index[0]+cwidth,index[1]-1), \
@@ -830,39 +911,38 @@ class Station(object):
                 else:
                     print "Component", self.component_count+1, "decided not to form"
                 break
-            else:
-                print "Component blocked!"
         if crashcount * (1+self.component_count) >= 100:
             print "Gave up on spawning component", self.component_count+1, "after", crashcount, "tries"
 
     def update_equipment(self):
+        """Update station parameters with any changes equipment or people make to temperature etc"""
         self.power_change, self.power_storage, self.oxygen_change, self.air_capacity, self.pressure_change, self.humidity_change, self.temperature_change = 0, 0, 0, 0, 0, 0, 0
-        print "population is", len(self.population)
         for component in self.components:
+            self.air_capacity += component.width * component.height
+            self.temperature_change -= component.width * component.height / 1000.0
             for equip in component.equipment:
                 self.power_change += equip.power / 500.0
-                self.temperature_change += abs(equip.power/10000.0)
+                self.temperature_change += abs(equip.power/5000.0)
                 if equip.type == 'battery':
                     self.power_storage += equip.width * equip.height * 10
                 if equip.type == 'recycler':
                     self.oxygen_change += equip.width * equip.height / 5.0
-                    print "oxygen change =", self.oxygen_change
                 if equip.type == 'dehumidifier':
                     self.humidity_change -= equip.width * equip.height / 20.0
+                    self.temperature_change += equip.width * equip.height / 50
                 if equip.type == 'pressurizer':
-                    self.pressure_change += equip.width * equip.height / 1000.0
+                    self.pressure_change += equip.width * equip.height / (self.air_capacity*5)
                 if equip.type == 'thermoregulator':
                     self.temperature_change += equip.width * equip.height / 20.0 if self.temperature < 23 else equip.width * equip.height / -20.0
             for airlock in component.airlocks:
                 if airlock not in self.airlocks:
                     self.airlocks.append(airlock)
-            self.temperature_change -= component.width * component.height / 1000.0
-            self.air_capacity += component.width * component.height
         self.temperature_change += len(self.population)/10.0
         self.oxygen_change -= len(self.population)
         self.humidity_change += len(self.population) / 50.0
 
     def update_image(self):
+        """Update the station's blit image"""
         for comp in self.components:
             for equip in comp.equipment:
                 eindex = (round((equip.eindex[0] - self.index[0]) * winZoom), round((equip.eindex[1] - self.index[1]) * winZoom))
@@ -873,6 +953,7 @@ class Station(object):
             self.image.blit(pygame.transform.scale(airlockTile, (winZoom, winZoom)), coords)
 
     def extent(self):
+        """Give the cardinal extremes of a station in the order (w, n, e, s)"""
         west, north, east, south = 0,0,0,0
         for comp in self.components:
             west = min(west, comp.index[0])
@@ -886,7 +967,8 @@ class Station(object):
                 south = max(south, airlock.coords[1])
         return (west, north, east, south)
 
-    def enter(self):            # this will return the corridor side of an external airlock
+    def enter(self):
+        """Return the corridor side of an external airlock"""
         airlock = self.airlocks[int(random()*len(self.airlocks))]
         entries = []
         for airlock in self.airlocks:
@@ -903,7 +985,6 @@ class Station(object):
                         entries.append(go(airlock.coords, cardinals[d]))
                 if entries:
                     return entries[int(random()*len(entries))]
-
 
     def __init__(self, space, stradix, flavor):
         self.space = space
@@ -929,15 +1010,17 @@ class Station(object):
 
 
 class Component(object):
-
+    """Components make up a station and spawn corridors, which spawn airlocks and block off equipment"""
     def place(self):
+        """Places the equipment as a rectangle of pound signs in space"""
         x, y = self.index
         print 'index:', self.index, 'extremity:', (x + self.width - 1, y + self.height - 1), 'width:', self.width, 'height:', self.height ####
         for ln in range(self.height):       # then place component
             for pt in range(self.width):
                 self.space[(x+pt,y+ln)] = '#'
 
-    def connect_deadends(self, deadends):           # corridors that end in a dead-end go to branches, and if branches don't link them we try here
+    def connect_deadends(self, deadends):
+        """Tries to link dead-end corridors that didn't get fixed in branches"""
         x, y = self.index
         cwidth = 2 * self.half_width + 1
         cheight = 2 * self.half_height + 1
@@ -1010,6 +1093,7 @@ class Component(object):
                             break
 
     def prune_doors(self, newdoors):
+        """Takes a list of potential door coords and weeds out conflicts"""
         for newd in newdoors:               # label newdoors with an a and make sure none of them are adjacent to other doors
             self.space[newd] = 'a'
             if filter(lambda d: newd[0]-1 <= d.coords[0] <= newd[0]+1 and newd[1]-1 <= d.coords[1] <= newd[1]+1, self.station.airlocks):
@@ -1035,7 +1119,8 @@ class Component(object):
                     newdoors.remove(newd)
                 del self.space[newd]
 
-    def place_equipment(self):                              # this picks equipment based on the flavor, keeping track of what's already there
+    def place_equipment(self):
+        """Picks equipment based on component flavor, keeping track of what's already there"""
         seasonings = 0
         for spice in self.flavor.keys():
             seasonings += max(0, self.flavor[spice])                        # add up all the flavor in this component
@@ -1058,12 +1143,10 @@ class Component(object):
                     burden = equipmentFlavors[flav][equip][1] * block[1] * block[2] * 5*minCompHeight*minCompWidth/(self.width*self.height)                              # how much flavor would that size generator have?
                     if self.flavor[flav]/20 - attempts*5 < burden < self.flavor[flav]/5 + attempts*20:                                      # is it a reasonable amount of flavor?
                         self.equipment.append(Equipment(self.space, self.station, self, block[0], block[1], block[2], equip, flav))
-                        print equip, "fits just fine!  It has a burden of", burden, "out of a total", flav, "of", self.flavor[flav]
+                        print "Placing", equip, "at", block[0]
                         for f in equipmentFlavors[flav][equip][0].flavors.keys():                           # go through all flavors for that equipment, [equip][0] is the Tile object
                             self.flavored[f] += equipmentFlavors[f][equip][1] * block[1] * block[2]         # add tile flavor * area to self.flavor/ed
                         break
-                    else:
-                        print equip, "CANNOT fit, because it has a burden of", burden, "out of a total", flav, "of", self.flavor[flav]
                 if attempts >= 50:
                     equip = equipmentFlavors[flav].keys()[randint(0,len(equipmentFlavors[flav].keys())-1)]      # whatever, fine, just place it
                     print "No equipment wants to go here, so let's just put this", equip
@@ -1072,6 +1155,7 @@ class Component(object):
                         self.flavored[f] += equipmentFlavors[f][equip][1] * block[1] * block[2]
 
     def airlock_update(self):
+        """Adds this component to all airlocks' component lists"""
         for airlock in self.airlocks:
             if self not in airlock.components:
                 airlock.components.append(self)
@@ -1099,8 +1183,9 @@ class Component(object):
 
 
 class NSComponent(Component):
-
+    """Components oriented north-south"""
     def spawn_webranches(self, deadends):
+        """Spawns branches west and east from the main corridors' deadends"""
         x, y = self.index
         cwidth = 2 * self.half_width + 1
         cheight = 2 * self.half_height + 1
@@ -1206,6 +1291,7 @@ class NSComponent(Component):
             self.space[end] = 'C'
 
     def spawn_nscorridors(self, space, cradix, half_width, half_height, flavor, nsprob, ewprob):
+        """Spawns the NSComponent's main north-south corridors"""
         x, y = self.index                           # top left index of the component
         cwidth = 2 * half_width + 1
         cheight = 2 * half_height + 1
@@ -1286,8 +1372,9 @@ class NSComponent(Component):
 
 
 class WEComponent(Component):
-
+    """Components oriented west-east"""
     def spawn_nsbranches(self, deadends):
+        """Spawns branches west and east from the main corridors' deadends"""
         x, y = self.index
         cwidth = 2 * self.half_width + 1
         cheight = 2 * self.half_height + 1
@@ -1393,6 +1480,7 @@ class WEComponent(Component):
             self.space[end] = 'C'
 
     def spawn_wecorridors(self, space, cradix, half_width, half_height, flavor, nsprob, ewprob):
+        """Spawns the WEComponent's main west-east corridors"""
         x, y = self.index                               # top left index of the component
         cwidth = 2 * half_width + 1
         cheight = 2 * half_height + 1
@@ -1473,12 +1561,25 @@ class WEComponent(Component):
 
 
 class Equipment(object):
+    """Equipment is the guts of a station
 
+    besides helping the player survive and attain goals, sometimes equipment contains loot when spawned"""
     def starting_loot(self):
         stuff = loot(equipmentLoot[self.type])
         for s in stuff:
             self.inv[s] += int(random()*(10*stuff[s]*self.width*self.height)**0.5)      # random*20x^0.5, so smalls get biggified and bigs get smallened
 
+    def access_points(self, character='C'):
+        """This finds all the points surrounding this equipment which match the desired character"""
+        x, y = self.eindex
+        adjacent = []
+        for ln in range(self.height):
+            adjacent.append((x-1, y+ln))
+            adjacent.append((x+self.width, y+ln))
+        for pt in range(self.width):
+            adjacent.append((x+pt, y-1))
+            adjacent.append((x+pt, y+self.height))
+        return filter(lambda a: is_character(self.space, a, character), adjacent)
 
     def __init__(self, space, station, component, eindex, width, height, type, flavor):
         self.space = space
@@ -1487,6 +1588,7 @@ class Equipment(object):
         self.eindex = eindex
         self.width = width
         self.height = height
+        self.access = self.access_points()
         self.type = type
         self.flavor = flavor
         self.inv = {'metal':0, 'wire':0, 'plastic':0, 'silica':0, 'electrolytes':0, 'hydrogen':0, 'diodes':0, \
@@ -1498,7 +1600,7 @@ class Equipment(object):
 
 
 class Airlock(object):
-
+    """Airlocks join adjacent components"""
     def __init__(self, space, station, coords, components):
         self.space = space
         self.station = station
@@ -1528,7 +1630,7 @@ game_loop(mouse, grid, wIndex, winZoom, playerOne, outerSpace)  # run the game u
 pygame.quit()  # if by some miracle you get here without that happening, quit immediately omg
 quit()
 
-# Do:  Components forming with airlocks at diagonals, and blocked-airlock corridors not linking.  Pathing to equipment.  Walking movement.  Make UI (parametric readouts!) /NPCs/equipment rules!
+# Do:  Fix seed 274 can't remove deadend.  Components forming with airlocks at diagonals.  Walking face change.  Make UI (parametric readouts!) /NPCs/equipment rules!
 
 # Make solar arrays?  Make transportation (roboferry? jetpack zipline?)
 # Other flavors?  Armory?  Science?  Propulsion?  Other resources? (23 currently)  Lubricants? Insulation?
