@@ -239,14 +239,16 @@ class Person(Sprite):
         self.station.population.append(self)
         self.coords = coords
         self.inventory = inventory
+        self.upgrades = []
         self.walk_1 = images[1]
         self.walk_2 = images[2]
         self.action = images[3]
         self.mode = 0
         self.wardrobe = [self.image, self.walk_1, self.walk_2, self.action]
         self.facing = 'n'
-        self.path = []
+        self.path = []          # where are you going to go, first?
         self.face()
+        self.plan = []          # what are you going to interact with as you move, in order?
 
 
 def check_return_not_none(func):
@@ -264,6 +266,7 @@ def check_return_not_none(func):
 
     return decorated_function
 
+
 def game_loop(mouse, grid, index, zoom, player, space):
     """This is the main loop from which the game runs"""
     timer = 0
@@ -275,6 +278,11 @@ def game_loop(mouse, grid, index, zoom, player, space):
             if timer == 1 and player.mode == 3:
                 player.mode = 0
                 player.coords = player.path.pop(0)
+                if player.plan and not player.path:
+                    if isinstance(player.plan[0], Equipment):
+                        player.facing = filter(lambda direc: what_equipment(go(player.coords, direc)) == player.plan[0], cardinals)[0]
+                        player.plan = []
+                    player.plan = []
                 grid.update(index, zoom, space)
             if timer in [6,11,16] and timer == player.mode * 5 + 6:
                 player.mode = (timer-1)/5
@@ -305,7 +313,8 @@ def game_loop(mouse, grid, index, zoom, player, space):
                             print "corridor"
                             player.path = path(player.coords, coords, 'corridor', space)
                             player.mode = 0
-                        elif what_equipment(coords) == 'airlock':
+                            player.plan = []
+                        elif isinstance(what_equipment(coords), Airlock):
                             print "airlock"
                             doorpath = filter(lambda x: x and what_equipment((x[-1][0],x[-1][1])) == 'corridor', \
                                                  [path(player.coords, go(coords,'n'), 'corridor', space), \
@@ -315,15 +324,20 @@ def game_loop(mouse, grid, index, zoom, player, space):
                             if doorpath:
                                 player.path = doorpath.pop()
                                 player.mode = 0
+                            player.plan = []
                         elif what_equipment(coords) == 'space':
                             print "space"
                         elif what_equipment(coords) == 'component':
                             print "component"
-                        else:
+                            player.plan = []
+                        elif isinstance(what_equipment(coords), Equipment):
                             equip = what_equipment(coords)
                             print_thing(what_equipment(coords).type, what_equipment(coords).inv)
                             player.path = path(player.coords, equip.access_points(), 'corridor', space)
                             player.mode = 0
+                            player.plan.append(equip)
+                            if not player.path:
+                                player.facing = filter(lambda direc: what_equipment(go(player.coords, direc)) == player.plan[0], cardinals)[0]
                 elif event.type == pygame.MOUSEMOTION:
                     mouse['pos'] = event.pos
 
@@ -376,8 +390,9 @@ class Grid(object):
         playeroney = playerOne.coords[1] - index[1] + (playerOne.mode%4)/4.0 if playerOne.facing == 's' \
             else playerOne.coords[1] - index[1] - (playerOne.mode%4)/4.0 if playerOne.facing == 'n' \
             else playerOne.coords[1] - index[1]
-        gameDisplay.blit(pygame.transform.scale(playerOne.wardrobe[playerOne.mode if playerOne.mode < 2 \
-            else 0 if playerOne.mode==2 else playerOne.mode-1], (zoom, zoom)), \
+        playeroner = 90 if playerOne.facing == 'e' else 180 if playerOne.facing == 'n' else 270 if playerOne.facing == 'w' else 0
+        gameDisplay.blit(pygame.transform.rotate(pygame.transform.scale(playerOne.wardrobe[playerOne.mode if playerOne.mode < 2 \
+            else 0 if playerOne.mode==2 else playerOne.mode-1], (zoom, zoom)), playeroner), \
                          (playeronex * zoom, playeroney * zoom))
 
 
@@ -460,6 +475,7 @@ def path(start, ends, pathtype, space=outerSpace):
             for sol in solution:
                 if filter(lambda e: e[0] == sol[0] and e[1] == sol[1], end):
                     solution.pop(0)
+                    print solution
                     return solution
                 else:    # look through the elements of solution for the end, adding lowest-value adj spots back to end
                     solution.append(sorted(filter(lambda sp: sp[0] == sol[0] and sp[1] in [sol[1]+1,sol[1]-1] \
@@ -529,7 +545,7 @@ def what_equipment(coords, stationlist=stations, space=outerSpace):
     for station in nearby:
         for airlock in station.airlocks:
             if coords == airlock.coords:
-                return 'airlock'
+                return airlock
         if is_character(station.space, coords, 'C'):
             return 'corridor'
         for comp in station.components:
@@ -1613,7 +1629,11 @@ gameDisplay.fill(backgroundColor)     # and a blank image window
 
 stations.append(Station(outerSpace, (0, 0, cardinals[randint(0, 3)]), season(defaultFlavor)))  # (what region?, (origin x,origin y,from what direction?), what flavors?)
 
-playerOne = Person(outerSpace, stations[0], stations[0].enter(), [playerImage, playerWalk1, playerWalk2, playerAction], [])
+playerOne = Person(outerSpace, stations[0], stations[0].enter(), [playerImage, playerWalk1, playerWalk2, playerAction], \
+                   {'metal':0, 'wire':0, 'plastic':0, 'silica':0, 'electrolytes':0, 'hydrogen':0, 'diodes':0, \
+                    'photocells':0, 'transistors':0, 'leds':0, 'screens':0, 'capacitors':0, 'resistors':0, \
+                    'oscillators':0, 'batteries':0, 'antennas':0, 'transformers':0, 'inductors':0, 'scrap':0, \
+                    'trash':0, 'food':0, 'water':0, 'medicine':0})
 
 stations[0].update_equipment()
 print "Station power is", stations[0].power, "out of", stations[0].power_storage, "changing by", stations[0].power_change, \
@@ -1630,10 +1650,10 @@ game_loop(mouse, grid, wIndex, winZoom, playerOne, outerSpace)  # run the game u
 pygame.quit()  # if by some miracle you get here without that happening, quit immediately omg
 quit()
 
-# Do:  Fix seed 274 can't remove deadend.  Components forming with airlocks at diagonals.  Walking face change.  Make UI (parametric readouts!) /NPCs/equipment rules!
+# Do:  Fix seed 274 can't remove deadend.  Components forming with airlocks at diagonals.  Make UI (parametric readouts!) /NPCs/equipment rules!
 
 # Make solar arrays?  Make transportation (roboferry? jetpack zipline?)
-# Other flavors?  Armory?  Science?  Propulsion?  Other resources? (23 currently)  Lubricants? Insulation?
+# Other equipment?  Armory?  Science?  Propulsion?  Other resources? (23 currently)  Lubricants? Insulation?
 # Items?  Pack?  Keycard?  Jetpack/autobot? Angle grinder?  Welder?
 # Rally NPCs: Proximity to liked characters.  Enjoyable work.  Childcare?  Shared victories?
 # Crises: Space storms?  Meteorites, static discharge, accidents, equipment failures.  Boredom? Anxiety? Drama.  Theft?  Of "medicine"?
