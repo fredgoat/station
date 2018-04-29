@@ -32,7 +32,7 @@ returnvalue
 from random import random, randint, seed
 
 super_seed = randint(1,1000)
-# super_seed = 410
+# super_seed = 296
 print "This seed is", super_seed
 seed(super_seed)    # this will let you go back to good randomnesses
 
@@ -43,8 +43,8 @@ os.environ['SDL_VIDEO_WINDOW_POS'] = "%d,%d" % (winLocX, winLocY)
 import pygame
 pygame.init()
 
-branchPersistence = 0.8     # corridor branches persist (or die) by a power of this
-compFreq         = 0.4     # probability that a component will in fact spawn
+branchPersistence = 0.75     # corridor branches persist (or die) by a power of this
+compFreq         = 0.35     # probability that a component will in fact spawn
 minCompHeight   = 4       # component dimensions
 minCompWidth    = 4
 maxCompHeight   = 12
@@ -142,6 +142,7 @@ gameDisplay = pygame.display.set_mode((winWidth * winZoom, winHeight * winZoom))
 pygame.display.set_caption('Space Station')
 backgroundColor = (0, 0, 0)
 background = pygame.image.load('images/background.bmp').convert()
+interface = pygame.image.load('images/interface.png')
 blankTile = pygame.image.load('images/blank tile.png')
 defaultTile = pygame.image.load('images/default tile.bmp').convert()           # these are now Surfaces, and converted to a nice /pixel/ format
 corridorTile = pygame.image.load('images/corridor tile.bmp').convert()         # later if I have sprites I can set_colorkey((255,255,255)) to make the white parts transparent
@@ -277,7 +278,8 @@ def game_loop(mouse, grid, index, zoom, player, space):
         if player.path:
             if timer == 1 and player.mode == 3:
                 player.mode = 0
-                player.coords = player.path.pop(0)
+                moveto = player.path.pop(0)
+                player.coords = (moveto[0],moveto[1])
                 if player.plan and not player.path:
                     if isinstance(player.plan[0], Equipment):
                         player.facing = filter(lambda direc: what_equipment(go(player.coords, direc)) == player.plan[0], cardinals)[0]
@@ -332,12 +334,13 @@ def game_loop(mouse, grid, index, zoom, player, space):
                             player.plan = []
                         elif isinstance(what_equipment(coords), Equipment):
                             equip = what_equipment(coords)
-                            print_thing(what_equipment(coords).type, what_equipment(coords).inv)
+                            print_thing(equip.type, equip.inv)
                             player.path = path(player.coords, equip.access_points(), 'corridor', space)
                             player.mode = 0
                             player.plan.append(equip)
                             if not player.path:
                                 player.facing = filter(lambda direc: what_equipment(go(player.coords, direc)) == player.plan[0], cardinals)[0]
+                                player.plan = []
                 elif event.type == pygame.MOUSEMOTION:
                     mouse['pos'] = event.pos
 
@@ -371,6 +374,14 @@ class Grid(object):
     def __init__(self):
         pass
 
+    def message_display(self, text, percentw, percenth, size):
+        """This puts text of at a certain relative point in the window at a certain size"""
+        neuropol = pygame.font.Font('neuropol.ttf',size)
+        textsurface = neuropol.render(text, True, (70, 30, 230))
+        textrect = textsurface.get_rect()
+        textrect.bottomright = ((displayInfo.current_w*percentw),(displayInfo.current_h*percenth))
+        gameDisplay.blit(textsurface, textrect)
+
     def update(self, index, zoom, space):
         """This wipes the screen, then fills in anything from that part of outerSpace"""
         intdex = (int(round(index[0])), int(round(index[1])))
@@ -379,8 +390,8 @@ class Grid(object):
         for point in window:            # then get all the relevant points from space
             m, n = point
             gameDisplay.blit(pygame.transform.scale(drawnTiles[space[m,n]],(zoom, zoom)), (round((m - index[0]) * zoom), round((n - index[1]) * zoom)))
-        nearby = filter(lambda x: x.space == space and intdex[0]-500 < x.stradix[0] < intdex[0]+(winWidth+1000)*zoom \
-                        and intdex[1]-500 < x.stradix[1] < intdex[1]+(winHeight+1000)*zoom, stations)
+        nearby = filter(lambda x: x.space == space and intdex[0]-10 < x.index[0] + x.width and x.index[0] < intdex[0]+(winWidth+10) \
+                        and intdex[1]-10 < x.index[1] + x.height and x.index[1] < intdex[1]+(winHeight+10), stations)
         for station in nearby:
             gameDisplay.blit(pygame.transform.scale(station.image, (station.width*zoom, station.height*zoom)), \
                              (round((station.index[0] - index[0]) * zoom), round((station.index[1] - index[1]) * zoom)))
@@ -394,6 +405,14 @@ class Grid(object):
         gameDisplay.blit(pygame.transform.rotate(pygame.transform.scale(playerOne.wardrobe[playerOne.mode if playerOne.mode < 2 \
             else 0 if playerOne.mode==2 else playerOne.mode-1], (zoom, zoom)), playeroner), \
                          (playeronex * zoom, playeroney * zoom))
+        gameDisplay.blit(pygame.transform.scale(interface, (displayInfo.current_w, displayInfo.current_h)), (-8, -20))
+        self.message_display("Station online", 0.12, 0.89, 20)
+        self.message_display(printPower, .98, 0.06, 10)
+        self.message_display(printOxy, 0.98, 0.08, 10)
+        self.message_display(printTemp, .98, 0.10, 10)
+        self.message_display(printPress, 0.98, 0.12, 10)
+        self.message_display(printHum, .98, 0.14, 10)
+        self.message_display(printSum, 0.98, 0.16, 10)
 
 
 def print_thing(name, dict):
@@ -1313,7 +1332,7 @@ class NSComponent(Component):
         cheight = 2 * half_height + 1
         nairlocks = filter(lambda airlock: airlock.coords[1]==y-1,self.airlocks)          # north airlocks (each is an (x,y) just outside the comp)
         sairlocks = filter(lambda airlock: airlock.coords[1]==y+cheight,self.airlocks)      # south airlocks
-        maincorridors = max(1,randint(cwidth/10, int(cwidth/3.5)), len(nairlocks) + len(sairlocks))     # how many n/s corridors left?
+        maincorridors = max(1,randint(cwidth/8, int(cwidth/3.5)), len(nairlocks) + len(sairlocks))     # how many n/s corridors left?
         deadends = []
         newdoors = []
         for na in nairlocks:               # place corridors spawned by north airlocks
@@ -1636,13 +1655,20 @@ playerOne = Person(outerSpace, stations[0], stations[0].enter(), [playerImage, p
                     'trash':0, 'food':0, 'water':0, 'medicine':0})
 
 stations[0].update_equipment()
-print "Station power is", stations[0].power, "out of", stations[0].power_storage, "changing by", stations[0].power_change, \
-    "while oxygen is", stations[0].oxygen, "out of", stations[0].air_capacity, "changing by", stations[0].oxygen_change, \
-    "pressure is", stations[0].pressure, "changing by", stations[0].pressure_change
-print "Station humidity is", stations[0].humidity, "changing by", stations[0].humidity_change, \
-    "temperature is", stations[0].temperature, "changing by", stations[0].temperature_change, \
-    "and station, which stretches from", stations[0].index, "to", (stations[0].extent()[2],stations[0].extent()[3]), \
-    "contains", len(stations[0].population), "souls."
+
+printPower = '{} {} {} {} {} {}.'.format("Station power is", stations[0].power, "out of", stations[0].power_storage, \
+                                          "changing by", stations[0].power_change)
+printOxy = '{} {} {} {} {} {}.'.format("Station oxygen is", stations[0].oxygen, "out of", stations[0].air_capacity, \
+                                        "changing by", stations[0].oxygen_change)
+printPress =  '{} {} {} {}.'.format("Station pressure is", stations[0].pressure, "changing by", \
+                                     stations[0].pressure_change)
+printHum =  '{} {} {} {}.'.format("Station humidity is", stations[0].humidity, "changing by", \
+                                   stations[0].humidity_change)
+printTemp = '{} {} {} {}.'.format("Station temperature is", stations[0].temperature, "changing by", \
+                                   stations[0].temperature_change)
+printSum = '{} {} {} {} {} {} {}.'.format("Station, which stretches from", stations[0].index, "to", \
+                                           (stations[0].extent()[2],stations[0].extent()[3]), "contains", \
+                                           len(stations[0].population), "souls.")
 
 grid.update(wIndex, winZoom, outerSpace)              # put that space on the screen
 
@@ -1650,7 +1676,7 @@ game_loop(mouse, grid, wIndex, winZoom, playerOne, outerSpace)  # run the game u
 pygame.quit()  # if by some miracle you get here without that happening, quit immediately omg
 quit()
 
-# Do:  Fix seed 274 can't remove deadend.  Components forming with airlocks at diagonals.  Make UI (parametric readouts!) /NPCs/equipment rules!
+# Do:  Fix seed 274 can't remove deadend.  Components forming with airlocks at diagonals.  Make parametric updates/NPCs/equipment rules!
 
 # Make solar arrays?  Make transportation (roboferry? jetpack zipline?)
 # Other equipment?  Armory?  Science?  Propulsion?  Other resources? (23 currently)  Lubricants? Insulation?
