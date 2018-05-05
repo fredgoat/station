@@ -43,8 +43,8 @@ os.environ['SDL_VIDEO_WINDOW_POS'] = "%d,%d" % (winLocX, winLocY)
 import pygame
 pygame.init()
 
-branchPersistence = 0.75     # corridor branches persist (or die) by a power of this
-compFreq         = 0.35     # probability that a component will in fact spawn
+branchPersistence = 0.65     # corridor branches persist (or die) by a power of this
+compFreq         = 0.25     # probability that a component will in fact spawn
 minCompHeight   = 4       # component dimensions
 minCompWidth    = 4
 maxCompHeight   = 12
@@ -54,7 +54,7 @@ compMultiplier = 2
 
 noFlavor = {'power':0, 'cargo':0, 'quarters':0, 'life support':0, 'medical':0, 'hydroponics':0, \
                  'command':0, 'reclamation':0, 'manufacture':0}
-defaultFlavor = {'power':500, 'cargo':0, 'quarters':-500, 'life support':500, 'medical':-300, 'hydroponics':-100, \
+defaultFlavor = {'power':500, 'cargo':100, 'quarters':-500, 'life support':500, 'medical':-500, 'hydroponics':-100, \
                  'command':-700, 'reclamation':-500, 'manufacture':-700}
 equipmentFlavors = {'power':{}, 'cargo':{}, 'quarters':{}, 'life support':{}, 'medical':{}, 'hydroponics':{}, \
                  'command':{}, 'reclamation':{}, 'manufacture':{}}        # this is each flavor's equipment value per tile, and a pointer to that equipment
@@ -178,8 +178,8 @@ recycler = Tile('recycler', 'recycler tile.bmp', (30,30), {'life support':1})   
 pressurizer = Tile('pressurizer', 'pressurizer tile.bmp', (30,30), {'life support':2})    # p = pressure control
 suppressor = Tile('suppressor', 'suppressor tile.bmp', (30,30), {'life support':20})      # s = fire suppression system
 dehumidifier = Tile('dehumidifier', 'dehumidifier tile.bmp', (10,10), {'life support':60}) # d
-infirmary = Tile('infirmary', 'infirmary tile.bmp', (30,30), {'medical':10})         # i
-medstation = Tile('medstation', 'medstation tile.bmp', (10,10), {'medical':40})    # +
+infirmary = Tile('infirmary', 'infirmary tile.bmp', (30,30), {'medical':20})         # i
+medstation = Tile('medstation', 'medstation tile.bmp', (10,10), {'medical':50})    # +
 farm = Tile('farm', 'farm tile.bmp', (30,30), {'hydroponics':5})               # a = algae farm
 box = Tile('box', 'box tile.bmp', (10,10), {'hydroponics':30})                # g = grow box
 purifier = Tile('purifier', 'purifier tile.bmp', (30,30), {'hydroponics':2})       # w = water purifier
@@ -234,6 +234,25 @@ class Person(Sprite):
                 elif self.coords[0] == dest[0]-1:
                     self.facing = 'e'
 
+    def update_ailments(self):
+        """Changes this Person's ailments according to the station's parameters"""
+        self.ailments['hypoxia'] = max(0.0, self.ailments['hypoxia'] - 1.5 * \
+                                       math.atan((9 * self.station.oxygen / self.station.air_capacity) - 1.5) - 0.5)
+        self.ailments['hypobaria'] = max(0.0, self.ailments['hypobaria'] - 1.2 * \
+                                       math.atan((100 * self.station.pressure) - 2.0) - 0.55)
+        self.ailments['hypothermia'] = max(0.0, self.ailments['hypothermia'] + 0.0003 * \
+                                           (math.atan(0.1*(287-self.station.temperature))))**25
+        self.ailments['hyperthermia'] = max(0.0, self.ailments['hyperthermia'] - 0.0003 * (0.5 + self.station.humidity) \
+                                           * (math.atan(0.1*(287-self.station.temperature))))**25
+        self.ailments['dehydration'] += 0.1
+        self.ailments['starvation'] += 0.02
+        self.ailments['sleep deprivation'] += 0.1
+        self.ailments['illness'] = self.ailments['illness'] * (random() + 0.7)**0.25 - 0.2
+        self.ailments['injury'] -= 0.05
+        for ail in self.ailments:
+            if self.ailments[ail] > 100:
+                print '{} {}.'.format('You are dying from', ail)
+
     def __init__(self, space, station, coords, images, inventory):
         Sprite.__init__(self, space, coords, images)
         self.station = station
@@ -250,6 +269,8 @@ class Person(Sprite):
         self.path = []          # where are you going to go, first?
         self.face()
         self.plan = []          # what are you going to interact with as you move, in order?
+        self.ailments = {'hypoxia': 0, 'hypobaria': 0, 'hypothermia': 0, 'hyperthermia': 0, \
+                         'dehydration': 0, 'starvation': 0, 'sleep deprivation': 0,'illness': 0, 'injury': 0}
 
 
 def check_return_not_none(func):
@@ -292,6 +313,11 @@ def game_loop(mouse, grid, index, zoom, player, space):
                 grid.update(index, zoom, space)
         else:
             player.mode = 0
+            grid.update(index, zoom, space)
+
+        if timer == 1:
+            for station in stations:
+                station.cycle()
             grid.update(index, zoom, space)
 
         x, y = pygame.mouse.get_rel()    # if nothing else, mark this moment to measure mouse movement from (dump relative movement up to this point)
@@ -377,7 +403,7 @@ class Grid(object):
     def message_display(self, text, percentw, percenth, size):
         """This puts text of at a certain relative point in the window at a certain size"""
         neuropol = pygame.font.Font('neuropol.ttf',size)
-        textsurface = neuropol.render(text, True, (70, 30, 230))
+        textsurface = neuropol.render(text, True, (50, 20, 200))
         textrect = textsurface.get_rect()
         textrect.bottomright = ((displayInfo.current_w*percentw),(displayInfo.current_h*percenth))
         gameDisplay.blit(textsurface, textrect)
@@ -386,10 +412,12 @@ class Grid(object):
         """This wipes the screen, then fills in anything from that part of outerSpace"""
         intdex = (int(round(index[0])), int(round(index[1])))
         gameDisplay.blit(background, (0, 0))
-        window = filter(lambda coords: intdex[0]-2 <= coords[0] < (winWidth+20)*zoom + intdex[0] and intdex[1]-2 <= coords[1] < (winHeight+10)*zoom + intdex[1], space.keys())
+        window = filter(lambda coords: intdex[0]-2 <= coords[0] < (winWidth+20)*zoom + intdex[0] and \
+                                       intdex[1]-2 <= coords[1] < (winHeight+10)*zoom + intdex[1], space.keys())
         for point in window:            # then get all the relevant points from space
             m, n = point
-            gameDisplay.blit(pygame.transform.scale(drawnTiles[space[m,n]],(zoom, zoom)), (round((m - index[0]) * zoom), round((n - index[1]) * zoom)))
+            if not space[m,n] == '#':
+                gameDisplay.blit(pygame.transform.scale(drawnTiles[space[m,n]],(zoom, zoom)), (round((m - index[0]) * zoom), round((n - index[1]) * zoom)))
         nearby = filter(lambda x: x.space == space and intdex[0]-10 < x.index[0] + x.width and x.index[0] < intdex[0]+(winWidth+10) \
                         and intdex[1]-10 < x.index[1] + x.height and x.index[1] < intdex[1]+(winHeight+10), stations)
         for station in nearby:
@@ -407,12 +435,12 @@ class Grid(object):
                          (playeronex * zoom, playeroney * zoom))
         gameDisplay.blit(pygame.transform.scale(interface, (displayInfo.current_w, displayInfo.current_h)), (-8, -20))
         self.message_display("Station online", 0.12, 0.89, 20)
-        self.message_display(printPower, .98, 0.06, 10)
-        self.message_display(printOxy, 0.98, 0.08, 10)
-        self.message_display(printTemp, .98, 0.10, 10)
-        self.message_display(printPress, 0.98, 0.12, 10)
-        self.message_display(printHum, .98, 0.14, 10)
-        self.message_display(printSum, 0.98, 0.16, 10)
+        self.message_display(playerOne.station.print_power(), .985, 0.06, 10)
+        self.message_display(playerOne.station.print_oxy(), 0.985, 0.08, 10)
+        self.message_display(playerOne.station.print_temp(), .985, 0.10, 10)
+        self.message_display(playerOne.station.print_press(), 0.985, 0.12, 10)
+        self.message_display(playerOne.station.print_hum(), .985, 0.14, 10)
+        self.message_display(playerOne.station.print_sum(), 0.985, 0.16, 10)
 
 
 def print_thing(name, dict):
@@ -476,37 +504,36 @@ def path(start, ends, pathtype, space=outerSpace):
         end = [ends]
     elif isinstance(ends, list):
         end = ends
-    spots = []
+    cells = []
     for e in end:
-        spots.append((e[0], e[1], 0))
-    # spots = [(end[0], end[1], 0)]
+        cells.append((e[0], e[1], 0))
     tries = 0
     solution = []
-    for spot in spots:
+    for cell in cells:
         tries += 1
         if tries > 500:
             return False
         adjacent = filter(lambda adj: what_equipment((adj[0],adj[1]))==pathtype, \
-                          [(spot[0], spot[1]+1, spot[2]+1), (spot[0]+1, spot[1], spot[2]+1), \
-                           (spot[0], spot[1]-1, spot[2]+1), (spot[0]-1, spot[1], spot[2]+1)])   # filter adj spots for the pathtype
-        if spot[0] == start[0] and spot[1] == start[1]:     # if we find the start, build a low-value solution back to end
-            solution.append(spot)
+                          [(cell[0], cell[1]+1, cell[2]+1), (cell[0]+1, cell[1], cell[2]+1), \
+                           (cell[0], cell[1]-1, cell[2]+1), (cell[0]-1, cell[1], cell[2]+1)])   # filter adj cells for the pathtype
+        if cell[0] == start[0] and cell[1] == start[1]:     # if we find the start, build a low-value solution back to end
+            solution.append(cell)
             for sol in solution:
                 if filter(lambda e: e[0] == sol[0] and e[1] == sol[1], end):
                     solution.pop(0)
                     print solution
                     return solution
-                else:    # look through the elements of solution for the end, adding lowest-value adj spots back to end
+                else:    # look through the elements of solution for the end, adding lowest-value adj cells back to end
                     solution.append(sorted(filter(lambda sp: sp[0] == sol[0] and sp[1] in [sol[1]+1,sol[1]-1] \
-                                    or sp[1] == sol[1] and sp[0] in [sol[0]+1,sol[0]-1], spots), key=lambda spot: spot[2])[0])
+                                    or sp[1] == sol[1] and sp[0] in [sol[0]+1,sol[0]-1], cells), key=lambda cell: cell[2])[0])
         for adj in adjacent:        # if we haven't found the start yet, expand the search, ignoring higher value repeats
             repeat = False
-            for spot in spots:
-                if spot[0] == adj[0] and spot[1] == adj[1] and spot[2] < adj[2]:
+            for cell in cells:
+                if cell[0] == adj[0] and cell[1] == adj[1] and cell[2] < adj[2]:
                     repeat = True
                     break
             if what_equipment((adj[0],adj[1])) == pathtype and not repeat:
-                spots.append(adj)
+                cells.append(adj)
     return False
 
 
@@ -588,9 +615,9 @@ def block_off(space, index, half_width, half_height):
     attempts = 0
     while attempts < 1000 and is_any(space, index, width, height, '#'):      # while there's any '#' left
         attempts += 1
-        spot = (index[0] + randint(0,width-1), index[1] + randint(0,height-1))      # pick a random spot
-        if is_character(space, spot, '#'):                                              # and if it's got a '#'
-            x, y = spot
+        cell = (index[0] + randint(0,width-1), index[1] + randint(0,height-1))      # pick a random cell
+        if is_character(space, cell, '#'):                                              # and if it's got a '#'
+            x, y = cell
             way = randint(0,3)
             direction = cardinals[way]                                      # pick a direction
             extremity = (0, 0)
@@ -602,8 +629,8 @@ def block_off(space, index, half_width, half_height):
                         way -= 1                                                # dead end?  turn counter-clockwise
                         direction = cardinals[way]
                     if not b:
-                        extremity = (x, y)                                          # you went and turned twice?  mark that spot, then continue
-                if (x, y) == spot:                                              # if you wind up where you started, that's a block
+                        extremity = (x, y)                                          # you went and turned twice?  mark that cell, then continue
+                if (x, y) == cell:                                              # if you wind up where you started, that's a block
                     h = min(extremity[0], x)
                     k = min(extremity[1], y)
                     m = max(extremity[0], x)
@@ -611,8 +638,8 @@ def block_off(space, index, half_width, half_height):
                     blocks.append(((h,k), m - h + 1, n - k + 1))
                     replace(space, (h,k), (m,n), '#', '+')
                     break
-                else:                                                           # if not, this is your new spot, try one more time
-                    spot = (x, y)
+                else:                                                           # if not, this is your new cell, try one more time
+                    cell = (x, y)
                     way += 4
     replace(space, index, (index[0]+width-1, index[1]+height-1), '+', '#')
     return blocks
@@ -953,28 +980,36 @@ class Station(object):
         """Update station parameters with any changes equipment or people make to temperature etc"""
         self.power_change, self.power_storage, self.oxygen_change, self.air_capacity, self.pressure_change, self.humidity_change, self.temperature_change = 0, 0, 0, 0, 0, 0, 0
         for component in self.components:
-            self.air_capacity += component.width * component.height
-            self.temperature_change -= component.width * component.height / 1000.0
+            self.air_capacity += component.area
+            self.temperature_change -= component.area * self.temperature / (296.0 * 500.0)
             for equip in component.equipment:
-                self.power_change += equip.power / 500.0
-                self.temperature_change += abs(equip.power/5000.0)
-                if equip.type == 'battery':
-                    self.power_storage += equip.width * equip.height * 10
-                if equip.type == 'recycler':
-                    self.oxygen_change += equip.width * equip.height / 5.0
-                if equip.type == 'dehumidifier':
-                    self.humidity_change -= equip.width * equip.height / 20.0
-                    self.temperature_change += equip.width * equip.height / 50
-                if equip.type == 'pressurizer':
-                    self.pressure_change += equip.width * equip.height / (self.air_capacity*5)
-                if equip.type == 'thermoregulator':
-                    self.temperature_change += equip.width * equip.height / 20.0 if self.temperature < 23 else equip.width * equip.height / -20.0
+                if equip.powered == 1:
+                    if -10 * equip.power > self.power:
+                        equip.powered = 0
+                        print "Powering down", equip.type
+                    self.power_change += equip.power / 500.0
+                    self.temperature_change += abs(equip.power/(3.0 * self.area))
+                    if equip.type == 'battery':
+                        self.power_storage += 10.0 * equip.area
+                    if equip.type == 'recycler':
+                        self.oxygen_change += 0.1 * equip.area
+                    if equip.type == 'dehumidifier':
+                        self.humidity_change -= 5.0 * equip.area / self.area
+                        self.temperature_change += 20 * equip.area / self.area
+                    if equip.type == 'pressurizer':
+                        self.pressure_change += equip.area / (self.air_capacity*5.0)
+                    if equip.type == 'thermoregulator':
+                        self.temperature_change += equip.area * 100.0 *(math.atan(.05*(296-self.temperature))) / self.area
+                    if equip.type == 'farm':
+                        self.humidity_change += 1.0 * equip.area / self.area
+                        self.temperature_change -= 5.0 * equip.area / self.area
+                        self.oxygen_change += 0.05 * equip.area
             for airlock in component.airlocks:
                 if airlock not in self.airlocks:
                     self.airlocks.append(airlock)
-        self.temperature_change += len(self.population)/10.0
-        self.oxygen_change -= len(self.population)
-        self.humidity_change += len(self.population) / 50.0
+        self.temperature_change += 100.0 * len(self.population)/self.area
+        self.oxygen_change -= 0.5 *  len(self.population)
+        self.humidity_change += 2.0 * len(self.population) / self.area
 
     def update_image(self):
         """Update the station's blit image"""
@@ -1002,6 +1037,12 @@ class Station(object):
                 south = max(south, airlock.coords[1])
         return (west, north, east, south)
 
+    def update_area(self):
+        """The real area of a station, cell by cell"""
+        self.area = 0
+        for component in self.components:
+            self.area += component.area
+
     def enter(self):
         """Return the corridor side of an external airlock"""
         airlock = self.airlocks[int(random()*len(self.airlocks))]
@@ -1021,6 +1062,35 @@ class Station(object):
                 if entries:
                     return entries[int(random()*len(entries))]
 
+    def cycle(self):
+        self.update_equipment()
+        self.power = max(0.0, min(self.power_storage,(self.power + self.power_change)))
+        self.oxygen = max(0.0, min(self.air_capacity * self.pressure,(self.oxygen + self.oxygen_change)))
+        self.pressure = max(0.0, min(1.0, (self.pressure + self.pressure_change)))
+        self.temperature = max(0.0, (self.temperature + self.temperature_change))
+        self.humidity = max(0.0, min(1.0, (self.humidity + self.humidity_change)))
+        for person in self.population:
+            person.update_ailments()
+
+    def print_power(self):
+        return '{} {} {} {} {} {}.'.format("Station power is", int(self.power), "out of", self.power_storage, \
+                                          "changing by", round(self.power_change, 1))
+    def print_oxy(self):
+        return '{} {} {} {} {} {}.'.format("Station oxygen is", int(self.oxygen), "out of", self.air_capacity, \
+                                        "changing by", round(self.oxygen_change, 1))
+    def print_press(self):
+        return '{} {} {} {}.'.format("Station pressure is", round(self.pressure, 2), "atmospheres, changing by", round(self.pressure_change,3))
+    def print_hum(self):
+        return '{} {}{} {}%.'.format("Station humidity is", int(100*self.humidity), "% changing by", round(100*self.humidity_change, 1))
+    def print_temp(self):
+        tempchange = self.temperature_change
+        if -0.05 < self.temperature_change < 0.05:
+            tempchange = 0
+        return '{} {}{} {}.'.format("Station temperature is", int(self.temperature), "K changing by", round(tempchange, 1))
+    def print_sum(self):
+        return '{} {} {} {} {} {} {}.'.format("Station, which stretches from", self.index, "to", \
+                                           (self.extent()[2],self.extent()[3]), "contains", len(self.population), "souls")
+
     def __init__(self, space, stradix, flavor):
         self.space = space
         self.stradix = stradix
@@ -1029,14 +1099,16 @@ class Station(object):
         self.component_count = 0
         self.airlocks = []
         self.population = []
-        self.power_change, self.power_storage, self.oxygen_change, self.air_capacity, self.pressure_change, self.humidity_change, self.temperature = 0, 0, 0, 0, 0, 0, 0
+        self.power_change, self.power_storage, self.power, self.oxygen_change, self.oxygen, self.air_capacity, self.pressure_change, \
+        self.humidity_change, self.humidity, self.temperature_change = 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        self.temperature = 296.0
+        self.pressure = 0.4
+        self.oxygen = 100
+        self.area = 1000
         self.spawn_component(self.stradix, self.flavor, [], (1-random()**2) * 0.75 + 0.2, (1-random()**2) * 0.75 + 0.2)     # ns and we probs are random between .2 and .95
+        self.update_area()
         self.update_equipment()
-        self.power = self.power_storage if self.power_change > 0 else 0
-        self.humidity = 0.0 if self.humidity_change <= 0 else 0.8
-        self.pressure = 1.0 if self.pressure_change > 0 else 0.3
-        self.oxygen = self.air_capacity * self.pressure if self.oxygen_change > 0 else 0.2 * self.air_capacity * self.pressure
-        self.temperature = 23.0 + self.temperature_change * 10
+        for _ in range(50): self.cycle()
         self.width = self.extent()[2] - self.extent()[0] + 1
         self.height = self.extent()[3] - self.extent()[1] + 1
         self.index = (self.extent()[0], self.extent()[1])
@@ -1208,6 +1280,7 @@ class Component(object):
         self.half_height = half_height
         self.width = 2 * half_width + 1
         self.height = 2 * half_height + 1
+        self.area = self.width * self.height
         self.flavor = season(flavor.copy())        # the flavor the component wants to have (mutate it from that provided by the spawn source)
         print "This component's flavors will be", self.flavor
         self.index = (cradix[0] - 2 * half_width if cradix[2] == 'e' else cradix[0] if cradix[2] == 'w' \
@@ -1623,6 +1696,7 @@ class Equipment(object):
         self.eindex = eindex
         self.width = width
         self.height = height
+        self.area = self.width * self.height
         self.access = self.access_points()
         self.type = type
         self.flavor = flavor
@@ -1632,6 +1706,7 @@ class Equipment(object):
                     'trash':0, 'food':0, 'water':0, 'medicine':0}
         self.starting_loot()
         self.power = equipmentPower[type]*width*height
+        self.powered = 1
 
 
 class Airlock(object):
@@ -1656,27 +1731,13 @@ playerOne = Person(outerSpace, stations[0], stations[0].enter(), [playerImage, p
 
 stations[0].update_equipment()
 
-printPower = '{} {} {} {} {} {}.'.format("Station power is", stations[0].power, "out of", stations[0].power_storage, \
-                                          "changing by", stations[0].power_change)
-printOxy = '{} {} {} {} {} {}.'.format("Station oxygen is", stations[0].oxygen, "out of", stations[0].air_capacity, \
-                                        "changing by", stations[0].oxygen_change)
-printPress =  '{} {} {} {}.'.format("Station pressure is", stations[0].pressure, "changing by", \
-                                     stations[0].pressure_change)
-printHum =  '{} {} {} {}.'.format("Station humidity is", stations[0].humidity, "changing by", \
-                                   stations[0].humidity_change)
-printTemp = '{} {} {} {}.'.format("Station temperature is", stations[0].temperature, "changing by", \
-                                   stations[0].temperature_change)
-printSum = '{} {} {} {} {} {} {}.'.format("Station, which stretches from", stations[0].index, "to", \
-                                           (stations[0].extent()[2],stations[0].extent()[3]), "contains", \
-                                           len(stations[0].population), "souls.")
-
 grid.update(wIndex, winZoom, outerSpace)              # put that space on the screen
 
 game_loop(mouse, grid, wIndex, winZoom, playerOne, outerSpace)  # run the game until the user hits the x
 pygame.quit()  # if by some miracle you get here without that happening, quit immediately omg
 quit()
 
-# Do:  Fix seed 274 can't remove deadend.  Components forming with airlocks at diagonals.  Make parametric updates/NPCs/equipment rules!
+# Do:  Fix seed 274 can't remove deadend.  Components forming with airlocks at diagonals.  Make NPCs/equipment rules!
 
 # Make solar arrays?  Make transportation (roboferry? jetpack zipline?)
 # Other equipment?  Armory?  Science?  Propulsion?  Other resources? (23 currently)  Lubricants? Insulation?
