@@ -6,7 +6,9 @@ To form a station, you spawn a component, which spawns corridors,
 which define equipment areas and spawn airlocks, which spawn more components.
 Then you fill in the equipment, according to that component's flava.
 
-Each station is an object with a list of components
+Each space is a dict, with a tuple for each key and one-character strings for values
+(but only of corridors and unassigned equipment cells)
+each station is an object with a list of components
 each component is an object with a radix, dimensions, airlock objects (a door is an airlock's coords), flavor, and equipment
 equipment is an object with an index, dimensions, type, flavor, and inventory (a dict)
 radix is a tuple, dimensions are two numbers, airlocks are objects but doors is a list of tuples,
@@ -32,7 +34,7 @@ returnvalue
 from random import random, randint, seed
 
 super_seed = randint(1,1000)
-# super_seed = 296
+# super_seed = 68
 print "This seed is", super_seed
 seed(super_seed)    # this will let you go back to good randomnesses
 
@@ -43,78 +45,153 @@ os.environ['SDL_VIDEO_WINDOW_POS'] = "%d,%d" % (winLocX, winLocY)
 import pygame
 pygame.init()
 
-branchPersistence = 0.65     # corridor branches persist (or die) by a power of this
-compFreq         = 0.25     # probability that a component will in fact spawn
-minCompHeight   = 4       # component dimensions
-minCompWidth    = 4
-maxCompHeight   = 12
-maxCompWidth    = 12
+branchPersistence = 0.2     # corridor branches persist (or die) by a power of this
+compFreq         = 0.7     # probability that a component will in fact spawn
+minCompHeight   = 2       # component dimensions
+minCompWidth    = 2
+maxCompHeight   = 8
+maxCompWidth    = 8
 bigCompFreq     = 0.15    # how often are comps bigger than max & by what factor?
 compMultiplier = 2
 
-noFlavor = {'power':0, 'cargo':0, 'quarters':0, 'life support':0, 'medical':0, 'hydroponics':0, \
-                 'command':0, 'reclamation':0, 'manufacture':0}
-defaultFlavor = {'power':500, 'cargo':100, 'quarters':-500, 'life support':500, 'medical':-500, 'hydroponics':-100, \
-                 'command':-700, 'reclamation':-500, 'manufacture':-700}
-equipmentFlavors = {'power':{}, 'cargo':{}, 'quarters':{}, 'life support':{}, 'medical':{}, 'hydroponics':{}, \
-                 'command':{}, 'reclamation':{}, 'manufacture':{}}        # this is each flavor's equipment value per tile, and a pointer to that equipment
-equipmentLoot = {'converter': [('nothing', 1, (0,0))], \
-                 'battery': [('nothing', 1, (0,0))], \
-                 'thermoregulator': [('nothing', 1, (0,0))], \
-                 'recycler':[('nothing', 1, (0,0))], \
-                 'suppressor':[('nothing', 0.3, (0,0)), ('electrolytes', 0.7, (1,3))], \
-                 'pressurizer':[('nothing', 1, (0,0))], \
-                 'dehumidifier':[('nothing', 0.25, (0,0)), ('water', 0.75, (1,3))], \
-                 'infirmary':[('nothing', 0.1, (0,0)), ('food', 0.5, (1,3)), ('water', 0.7, (1,4)), ('medicine', 0.95, (1,5)), ('electrolytes', 0.6, (1,2))], \
-                 'medstation':[('nothing', 0.5, (0,0)), ('food', 0.1, (1,3)), ('water', 0.6, (1,4)), ('medicine', 0.8, (1,9))], \
-                 'farm':[('nothing', 0.6, (0,0)), ('food', 0.75, (1,7)), ('water', 0.2, (1,3)), ('medicine', 0.1, (1,3))], \
-                 'box':[('nothing', 0.8, (0,0)), ('food', 0.2, (1,10)), ('medicine', 0.05, (1,4))], \
-                 'purifier':[('nothing', 0.1, (0,0)), ('water', 0.95, (3,10))], \
-                 'extruder':[('nothing', 0.1, (0,0)), ('metal', 0.6, (1,4)), ('wire', 0.8, (1,10))], \
-                 'fabricator':[('nothing', 0.1, (0,0)), ('metal', 0.2, (1,2)), ('wire', 0.8, (1,6)), \
-                               ('plastic', 0.4, (1,3)), ('silica', 0.4, (1,3)), ('electrolytes', 0.3, (1,3)), \
-                               ('hydrogen', 0.2, (1,3)), ('diodes', 0.5, (1,4)), ('photocells', 0.2, (1,3)), \
-                               ('transistors', 0.4, (1,4)), ('leds', 0.3, (1,4)), ('screens', 0.1, (1,2)), \
-                               ('capacitors', 0.4, (1,4)), ('resistors', 0.5, (1,4)), ('oscillators', 0.1, (1,2)), \
-                               ('batteries', 0.3, (1,3)), ('antennas', 0.1, (1,2)), ('transformers', 0.2, (1,3)), \
-                               ('inductors', 0.2, (1,3))], \
-                 'assembler':[('nothing', 0.1, (0,0)), ('wire', 0.8, (1,6)), ('plastic', 0.1, (1,2)), ('silica', 0.5, (1,6)), \
-                               ('diodes', 0.5, (1,6)), ('photocells', 0.2, (1,4)), ('transistors', 0.4, (1,6)), \
-                               ('leds', 0.3, (1,6)), ('screens', 0.1, (1,3)), ('capacitors', 0.4, (1,6)), \
-                               ('resistors', 0.5, (1,6)), ('oscillators', 0.1, (1,3)), ('batteries', 0.3, (1,4)), \
-                               ('antennas', 0.1, (1,3)), ('transformers', 0.2, (1,4)), ('inductors', 0.2, (1,4))], \
-                 'furnace':[('nothing', 0.3, (0,0)), ('metal', 0.2, (1,3)), ('silica', 0.1, (1,3)), ('scrap', 0.4, (1,5))], \
-                 'mold':[('nothing', 0.4, (0,0)), ('trash', 0.4, (1,5)), ('plastic', 0.2, (1,3))], \
-                 'electrolyzer':[('nothing', 0.1, (0,0)), ('water', 0.9, (5,10)), ('hydrogen', 0.7, (5,15))], \
-                 'hold':[('nothing', 0.1, (0,0)), ('metal', 0.2, (1,2)), ('wire', 0.2, (1,2)), \
-                               ('plastic', 0.2, (1,2)), ('silica', 0.1, (1,4)), ('electrolytes', 0.1, (1,2)), \
-                               ('hydrogen', 0.1, (1,2)), ('diodes', 0.1, (1,2)), ('photocells', 0.1, (1,2)), \
-                               ('transistors', 0.1, (1,2)), ('leds', 0.1, (1,2)), ('screens', 0.05, (1,2)), \
-                               ('capacitors', 0.1, (1,2)), ('resistors', 0.1, (1,2)), ('oscillators', 0.1, (1,2)), \
-                               ('batteries', 0.2, (1,2)), ('antennas', 0.1, (1,2)), ('transformers', 0.1, (1,2)), \
-                               ('inductors', 0.1, (1,2)), ('scrap', 0.1, (1,10)), ('trash', 0.1, (4,10)), \
-                               ('food', 0.3, (1,8)), ('water', 0.1, (1,10)), ('medicine', 0.1, (1,2))], \
-                 'locker':[('nothing', 0.1, (0,0)), ('leds', 0.05, (1,4)), ('screens', 0.05, (1,2)), \
-                               ('batteries', 0.2, (1,2)), ('antennas', 0.1, (1,2)), ('trash', 0.5, (4,10)), \
-                               ('food', 0.5, (1,15)), ('water', 0.5, (1,20)), ('medicine', 0.2, (1,5))], \
-                 'trashed':[('nothing', 0.1, (0,0)), ('wire', 0.4, (1,2)), ('silica', 0.3, (1,2)), \
-                               ('diodes', 0.1, (1,2)), ('photocells', 0.1, (1,2)), \
-                               ('transistors', 0.1, (1,2)), ('leds', 0.1, (1,2)), ('screens', 0.05, (1,2)), \
-                               ('capacitors', 0.1, (1,2)), ('resistors', 0.1, (1,2)), ('oscillators', 0.1, (1,2)), \
-                               ('batteries', 0.1, (1,2)), ('antennas', 0.05, (1,2)), ('transformers', 0.1, (1,2)), \
-                               ('inductors', 0.1, (1,2)), ('scrap', 0.8, (1,8)), ('trash', 0.6, (1,5))], \
-                 'cabin':[('nothing', 0.1, (0,0)), ('screens', 0.1, (1,3)), ('batteries', 0.2, (1,3)), ('trash', 0.1, (1,2)), \
-                               ('food', 0.6, (1,8)), ('water', 0.6, (1,6)), ('medicine', 0.4, (1,6))], \
-                 'dormitory':[('nothing', 0.1, (0,0)), ('screens', 0.05, (1,2)), ('batteries', 0.1, (1,2)), ('trash', 0.1, (1,2)), \
-                               ('food', 0.3, (1,4)), ('water', 0.5, (1,3)), ('medicine', 0.1, (1,2))], \
-                 'refectory':[('nothing', 0.1, (0,0)), ('trash', 0.1, (1,2)), \
-                               ('food', 0.6, (1,8)), ('water', 0.6, (1,6)), ('medicine', 0.05, (1,2))], \
-                 'sensors':[('nothing', 1, (0,0))], \
-                 'comms':[('nothing', 1, (0,0))], \
-                 'bridge':[('nothing', 0.1, (0,0)), ('screens', 0.05, (1,3)), ('batteries', 0.1, (1,3)), ('trash', 0.1, (1,3)), \
-                               ('food', 0.2, (1,2)), ('water', 0.4, (1,3)), ('medicine', 0.1, (1,2))]}
-                                        # lists of (name, weight, (min, max)) for loot(stuff) - min & max CAN be floats
-equipmentPower = {'converter':30, 'battery':0, 'thermoregulator':-3, 'recycler':-5, 'suppressor':0, 'pressurizer':-3, \
+noFlavor = {
+    'power':0, 'cargo':0, 'quarters':0, 'life support':0, 'medical':0, 'hydroponics':0, 'command':0,
+    'reclamation':0, 'manufacture':0
+}
+defaultFlavor = {
+    'power':500, 'cargo':0, 'quarters':-700, 'life support':500, 'medical':-1200, 'hydroponics':-500,
+    'command':-2000, 'reclamation':-1000, 'manufacture':-1500
+}
+equipmentFlavors = {
+    'power':{}, 'cargo':{}, 'quarters':{}, 'life support':{}, 'medical':{}, 'hydroponics':{}, 'command':{},
+    'reclamation':{}, 'manufacture':{}
+}        # this is each flavor's equipment value per tile, and a pointer to that equipment
+equipmentLoot = {
+    'converter': [('nothing', 1, (0,0))],
+    'battery': [('nothing', 1, (0,0))],
+    'thermoregulator': [('nothing', 1, (0,0))],
+    'recycler':[('nothing', 1, (0,0))],
+    'suppressor':[('nothing', 0.3, (0,0)), ('electrolytes', 0.7, (1,3))],
+    'pressurizer':[('nothing', 1, (0,0))],
+    'dehumidifier':[('nothing', 0.25, (0,0)), ('water', 0.75, (1,3))],
+    'infirmary':[
+        ('nothing', 0.1, (0,0)), ('food', 0.5, (1,3)), ('water', 0.7, (1,4)), ('medicine', 0.95, (1,5)),
+        ('electrolytes', 0.6, (1,2))
+    ],
+    'medstation':[('nothing', 0.5, (0,0)), ('food', 0.1, (1,3)), ('water', 0.6, (1,4)), ('medicine', 0.8, (1,9))],
+    'farm':[('nothing', 0.6, (0,0)), ('food', 0.75, (1,7)), ('water', 0.2, (1,3)), ('medicine', 0.1, (1,3))],
+    'box':[('nothing', 0.8, (0,0)), ('food', 0.2, (1,10)), ('medicine', 0.05, (1,4))],
+    'purifier':[('nothing', 0.1, (0,0)), ('water', 0.95, (3,10))],
+    'extruder':[('nothing', 0.1, (0,0)), ('metal', 0.6, (1,4)), ('wire', 0.8, (1,10))],
+    'fabricator':[
+        ('nothing', 0.1, (0,0)), ('metal', 0.2, (1,2)), ('wire', 0.8, (1,6)),
+        ('plastic', 0.4, (1,3)), ('silica', 0.4, (1,3)), ('electrolytes', 0.3, (1,3)),
+        ('diodes', 0.5, (1,4)), ('capacitors', 0.4, (1,4)), ('resistors', 0.5, (1,4))
+    ],
+    'assembler':[
+        ('nothing', 0.1, (0,0)), ('wire', 0.8, (1,6)), ('plastic', 0.1, (1,2)), ('silica', 0.3, (1,3)),
+        ('hydrogen', 0.4, (1,3)), ('diodes', 0.5, (1,6)), ('photocells', 0.2, (1,4)), ('transistors', 0.4, (1,6)),
+        ('leds', 0.3, (1,6)), ('screens', 0.1, (1,3)), ('capacitors', 0.4, (1,6)),
+        ('resistors', 0.5, (1,6)), ('oscillators', 0.1, (1,3)), ('batteries', 0.3, (1,4)),
+        ('antennas', 0.1, (1,3)), ('transformers', 0.2, (1,4)), ('inductors', 0.2, (1,4)),
+        ('relays', 0.1, (1,3)), ('amplifiers', 0.1, (1,3))],
+    'furnace':[('nothing', 0.3, (0,0)), ('metal', 0.2, (1,3)), ('silica', 0.1, (1,3)), ('scrap', 0.4, (1,5))],
+    'mold':[('nothing', 0.4, (0,0)), ('trash', 0.4, (1,5)), ('plastic', 0.2, (1,3))],
+    'electrolyzer':[('nothing', 0.1, (0,0)), ('water', 0.9, (5,10)), ('hydrogen', 0.7, (5,15))],
+    'hold':[
+        ('nothing', 0.1, (0,0)), ('metal', 0.2, (1,2)), ('wire', 0.2, (1,2)),
+        ('plastic', 0.2, (1,2)), ('silica', 0.1, (1,4)), ('electrolytes', 0.1, (1,2)),
+        ('hydrogen', 0.1, (1,2)), ('diodes', 0.1, (1,2)), ('photocells', 0.1, (1,2)),
+        ('transistors', 0.1, (1,2)), ('leds', 0.1, (1,2)), ('screens', 0.05, (1,2)),
+        ('capacitors', 0.1, (1,2)), ('resistors', 0.1, (1,2)), ('oscillators', 0.1, (1,2)),
+        ('batteries', 0.2, (1,2)), ('antennas', 0.1, (1,2)), ('transformers', 0.1, (1,2)),
+        ('relays', 0.1, (1,3)), ('amplifiers', 0.1, (1,3)),
+        ('inductors', 0.1, (1,2)), ('scrap', 0.1, (1,10)), ('trash', 0.1, (4,10)),
+        ('food', 0.3, (1,8)), ('water', 0.1, (1,10)), ('medicine', 0.1, (1,2))
+    ],
+    'locker':[
+        ('nothing', 0.1, (0,0)), ('leds', 0.05, (1,4)), ('screens', 0.05, (1,2)),
+        ('batteries', 0.2, (1,2)), ('antennas', 0.1, (1,2)), ('trash', 0.5, (4,10)),
+        ('food', 0.5, (1,15)), ('water', 0.5, (1,20)), ('medicine', 0.3, (1,12))
+    ],
+    'trashed':[
+        ('nothing', 0.1, (0,0)), ('wire', 0.4, (1,2)), ('silica', 0.3, (1,2)),
+        ('diodes', 0.1, (1,2)), ('photocells', 0.1, (1,2)),
+        ('transistors', 0.1, (1,2)), ('leds', 0.1, (1,2)), ('screens', 0.05, (1,2)),
+        ('capacitors', 0.1, (1,2)), ('resistors', 0.1, (1,2)), ('oscillators', 0.1, (1,2)),
+        ('batteries', 0.1, (1,2)), ('antennas', 0.05, (1,2)), ('transformers', 0.1, (1,2)),
+        ('inductors', 0.1, (1,2)), ('relays', 0.1, (1,3)), ('amplifiers', 0.1, (1,3)),
+        ('scrap', 0.8, (1,8)), ('trash', 0.6, (1,5))
+    ],
+    'cabin':[
+        ('nothing', 0.1, (0,0)), ('screens', 0.1, (1,3)), ('batteries', 0.2, (1,3)), ('trash', 0.1, (1,2)),
+        ('food', 0.6, (1,8)), ('water', 0.6, (1,6)), ('medicine', 0.4, (1,6))
+    ],
+    'dormitory':[
+        ('nothing', 0.1, (0,0)), ('screens', 0.05, (1,2)), ('batteries', 0.1, (1,2)), ('trash', 0.1, (1,2)),
+        ('food', 0.3, (1,4)), ('water', 0.5, (1,3)), ('medicine', 0.1, (1,2))
+    ],
+    'refectory':[
+        ('nothing', 0.1, (0,0)), ('trash', 0.1, (1,2)), ('food', 0.6, (1,8)), ('water', 0.6, (1,6)),
+        ('medicine', 0.05, (1,2))
+    ],
+    'sensors':[('nothing', 1, (0,0))],
+    'comms':[('nothing', 1, (0,0))],
+    'bridge':[
+        ('nothing', 0.1, (0,0)), ('screens', 0.05, (1,3)), ('batteries', 0.1, (1,3)), ('trash', 0.1, (1,3)),
+        ('food', 0.2, (1,2)), ('water', 0.4, (1,3)), ('medicine', 0.1, (1,2))
+    ]
+}                                      # lists of (name, weight, (min, max)) for loot(stuff) - min & max CAN be floats
+equipmentProduction = {
+    'converter': (1, 1, {}, {}),
+    'battery': (1, 1, {}, {}),
+    'thermoregulator': (1, 1, {}, {}),
+    'recycler': (10, 1, {}, {}),
+    'suppressor': (5, 1, {}, {}),
+    'pressurizer': (1, 1, {}, {}),
+    'dehumidifier': (5, 100, {}, {'water': 1}),
+    'infirmary': (10, 1, {}, {}),
+    'medstation': (20, 1, {}, {}),
+    'farm': (10, 2000, {'water': 1}, {'food': 2, 'medicine': 1}),
+    'box': (10, 2000, {}, {'food':1, 'medicine': 1}),
+    'purifier': (20, 200, {}, {'water': 1}),
+    'extruder': (10, 1000, {'metal': 1}, {'wire': 1}),
+    'fabricator': (
+        50, 5000, {'metal':1, 'wire': 3, 'plastic': 1, 'silica': 1, 'electrolytes': 1},
+        {
+            'diodes': 1, 'transistors': 1, 'leds': 1, 'capacitors': 1, 'resistors': 1
+        }
+    ),
+    'assembler': (
+        50, 10000, {
+            'wire': 5, 'plastic': 2, 'silica': 2, 'electrolytes': 1, 'hydrogen': 1, 'transistors': 2, 'leds': 2,
+            'diodes': 1, 'resistors': 2, 'capacitors': 2
+        },
+        {
+            'photocells': 1, 'screens': 1, 'oscillators': 1, 'batteries': 1, 'antennas': 1, 'transformers': 1,
+            'inductors': 1, 'relays': 1, 'amplifiers': 1
+        }
+    ),
+    'furnace': (10, 500, {'scrap': 2}, {'metal': 1, 'silica': 1}),
+    'mold': (10, 200, {'trash': 1}, {'plastic': 1}),
+    'electrolyzer': (20, 200, {'water': 1}, {'hydrogen': 1}),
+    'hold': (50, 1, {}, {}),
+    'locker': (50, 1, {}, {}),
+    'trashed': (20, 1, {}, {}),
+    'cabin': (20, 1, {}, {}),
+    'dormitory': (20, 1, {}, {}),
+    'refectory': (10, 1, {}, {}),
+    'sensors': (1, 1, {}, {}),
+    'comms': (1, 1, {}, {}),
+    'bridge': (5, 1, {}, {}),
+}                           # inventory space per cell, cycles per production, inputs, outputs)
+equipmentNoises = [
+    "sputters", "hiccups", "belches", "coughs", "sighs", "whines", "fizzles", "pops", "groans", "squeaks",
+    "makes a banging sound", "grinds", "sparks menacingly", "emits a vague puff of smoke",
+    "lights up its display momentarily", "resets its display several times", "seems to growl angrily", "coughs suddenly",
+    "makes a high-pitched whine", "makes a faint squeal" "makes an eerie skittering sound", "belches abruptly"
+]
+equipmentPower = {'converter':25, 'battery':0, 'thermoregulator':-3, 'recycler':-5, 'suppressor':0, 'pressurizer':-3, \
                   'dehumidifier':-1, 'infirmary':-5, 'medstation':0, 'farm':-2, 'box':0, 'purifier':-6, \
                   'extruder':-14, 'fabricator':-8, 'assembler':-6, 'furnace':-16, 'mold':-10, 'electrolyzer':-20, \
                   'hold':0, 'locker':0, 'trashed':0, 'cabin':-2, 'dormitory':-1, 'refectory':-1, 'sensors':-2, \
@@ -134,6 +211,7 @@ wIndex = (float(winWidth) / -2, float(winHeight) / -2)        # this is the uppe
 
 clock = pygame.time.Clock()
 clock.tick(240)
+ticksPerCycle = 8                                            # should be divisible by 4
 mouse = {'pos':(0,0), 1:0, 2:0, 3:0, 4:0, 5:0, 6:0} # {position, button 1, button 2, etc}
 pygame.event.set_allowed([pygame.QUIT, pygame.KEYDOWN, pygame.KEYUP, pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP, pygame.MOUSEMOTION])
 
@@ -149,6 +227,11 @@ corridorTile = pygame.image.load('images/corridor tile.bmp').convert()         #
 airlockTile = pygame.image.load('images/airlock tile.bmp').convert()
 defaultPattern = pygame.Surface((winWidth * winZoom, winHeight * winZoom))
 
+def keywithmaxval(d):
+     """Uses lists of the dict's keys and values to return the max valued key"""
+     v=list(d.values())
+     k=list(d.keys())
+     return k[v.index(max(v))]
 
 def patterner(background, tile, size):
     """This draws a repeating background pattern out of tile images"""
@@ -178,19 +261,19 @@ recycler = Tile('recycler', 'recycler tile.bmp', (30,30), {'life support':1})   
 pressurizer = Tile('pressurizer', 'pressurizer tile.bmp', (30,30), {'life support':2})    # p = pressure control
 suppressor = Tile('suppressor', 'suppressor tile.bmp', (30,30), {'life support':20})      # s = fire suppression system
 dehumidifier = Tile('dehumidifier', 'dehumidifier tile.bmp', (10,10), {'life support':60}) # d
-infirmary = Tile('infirmary', 'infirmary tile.bmp', (30,30), {'medical':20})         # i
+infirmary = Tile('infirmary', 'infirmary tile.bmp', (30,30), {'medical':10})         # i
 medstation = Tile('medstation', 'medstation tile.bmp', (10,10), {'medical':50})    # +
-farm = Tile('farm', 'farm tile.bmp', (30,30), {'hydroponics':5})               # a = algae farm
+farm = Tile('farm', 'farm tile.bmp', (30,30), {'hydroponics':5})               # ^ = hydroponic farm
 box = Tile('box', 'box tile.bmp', (10,10), {'hydroponics':30})                # g = grow box
 purifier = Tile('purifier', 'purifier tile.bmp', (30,30), {'hydroponics':2})       # w = water purifier
 extruder = Tile('extruder', 'extruder tile.bmp', (30,30), {'manufacture':5})       # x = wire extruder
 fabricator = Tile('fabricator', 'fabricator tile.bmp', (30,30), {'manufacture':2})   # * = component fabricator
-assembler = Tile('assembler', 'assembler tile.bmp', (30,30), {'manufacture':1})     # & = circuit assembler
+assembler = Tile('assembler', 'assembler tile.bmp', (30,30), {'manufacture':1})     # & = component assembler
 furnace = Tile('furnace', 'furnace tile.bmp', (30,30), {'reclamation':1})         # f = metal/silica furnace
 mold = Tile('mold', 'mold tile.bmp', (30,30), {'reclamation':1})               # m = plastic mold
 electrolyzer = Tile('electrolyzer', 'electrolyzer tile.bmp', (30,30), {'reclamation':2})    # e
-hold = Tile('hold', 'hold tile.bmp', (30,30), {'cargo':20})                             # h
-locker = Tile('locker', 'locker tile.bmp', (30,30), {'cargo':40})                      # l
+hold = Tile('hold', 'hold tile.bmp', (30,30), {'cargo':15})                             # h
+locker = Tile('locker', 'locker tile.bmp', (10,10), {'cargo':40})                      # l
 trashed = Tile('trashed', 'trashed tile.bmp', (30,30), {'cargo':1})                     # ~
 cabin = Tile('cabin', 'cabin tile.bmp', (30,30), {'quarters':20})               # $ = boss's cabin
 dormitory = Tile('dormitory', 'dormitory tile.bmp', (30,30), {'quarters':5})    # q
@@ -200,7 +283,7 @@ comms = Tile('comms', 'comms tile.bmp', (30,30), {'command':5})                 
 bridge = Tile('bridge', 'bridge tile.bmp', (30,30), {'command':30})            # !
 
 
-drawnTiles = {'#': defaultTile, 'C': corridorTile}
+# drawnTiles = {'#': defaultTile, 'C': corridorTile}
 
 
 playerImage = pygame.image.load('images/player image.png')
@@ -210,7 +293,7 @@ playerAction = pygame.image.load('images/player action.png')
 
 
 class Sprite(object):
-    """Things that are in space and have an image that isn't part of the background"""
+    """Things that are in space and have an image that moves in the foreground"""
     def __init__(self, space, coords, images):
         self.space = space
         self.coords = coords
@@ -234,24 +317,43 @@ class Person(Sprite):
                 elif self.coords[0] == dest[0]-1:
                     self.facing = 'e'
 
+    def tell_players(self, thing):
+        for person in self.station.population:
+            if isinstance(person, Player):
+                person.message.append(thing)
+
     def update_ailments(self):
         """Changes this Person's ailments according to the station's parameters"""
-        self.ailments['hypoxia'] = max(0.0, self.ailments['hypoxia'] - 1.5 * \
-                                       math.atan((9 * self.station.oxygen / self.station.air_capacity) - 1.5) - 0.5)
-        self.ailments['hypobaria'] = max(0.0, self.ailments['hypobaria'] - 1.2 * \
+        self.ailments['hypoxia'] = max(0.0, self.ailments['hypoxia'] - random() * 1.6 * \
+                                       math.atan((30 * self.station.oxygen / self.station.air_capacity) - 1.2) \
+                                       + 1.3 - 0.5 * self.station.oxygen / self.station.air_capacity)
+        self.ailments['hypobaria'] = max(0.0, self.ailments['hypobaria'] - random() * 2.4 * \
                                        math.atan((100 * self.station.pressure) - 2.0) - 0.55)
-        self.ailments['hypothermia'] = max(0.0, self.ailments['hypothermia'] + 0.0003 * \
-                                           (math.atan(0.1*(287-self.station.temperature))))**25
-        self.ailments['hyperthermia'] = max(0.0, self.ailments['hyperthermia'] - 0.0003 * (0.5 + self.station.humidity) \
-                                           * (math.atan(0.1*(287-self.station.temperature))))**25
-        self.ailments['dehydration'] += 0.1
-        self.ailments['starvation'] += 0.02
-        self.ailments['sleep deprivation'] += 0.1
-        self.ailments['illness'] = self.ailments['illness'] * (random() + 0.7)**0.25 - 0.2
-        self.ailments['injury'] -= 0.05
-        for ail in self.ailments:
-            if self.ailments[ail] > 100:
-                print '{} {}.'.format('You are dying from', ail)
+        self.ailments['hypothermia'] = max(0.0, self.ailments['hypothermia'] + random() * 0.001 * \
+                                           (math.atan(0.1*(287-self.station.temperature)))**25)
+        self.ailments['hyperthermia'] = max(0.0, self.ailments['hyperthermia'] - random() * 0.001 * (0.5 + self.station.humidity) \
+                                           * (math.atan(0.1*(287-self.station.temperature)))**25)
+        self.ailments['dehydration'] += random() * 0.04
+        self.ailments['starvation'] += random() * 0.01
+        self.ailments['sleep deprivation'] += random() * 0.02
+        self.ailments['illness'] = max(0.0, self.ailments['illness'] * (random() + 0.7)**0.25 - 0.2)
+        self.ailments['injury'] = max(0.0, self.ailments['injury'] - 0.05)
+        self.update_condition()
+
+    def update_condition(self):
+        worst = keywithmaxval(self.ailments)
+        if worst > 100 and not self.condition=='{1} has just died from {0}.'.format(worst, self.name):
+            self.condition = '{1} has just died from {0}.'.format(worst, self.name)
+            self.tell_players(self.condition)
+        elif 70 < worst < 95 and not self.condition=='The {} has made {} dangerously weak.'.format(worst, self.name):
+            self.condition = 'The {} has made {} dangerously weak.'.format(worst, self.name)
+            self.tell_players(self.condition)
+        elif 15 < worst < 65 and not self.condition=='The {} is starting to get to {}.'.format(worst, self.name):
+            self.condition = 'The {} is starting to get to {}.'.format(worst, self.name)
+            self.tell_players(self.condition)
+        elif worst < 10 and not self.condition=='{} is feeling fine again.'.format(worst, self.name):
+            self.condition = '{} is feeling fine again.'.format(worst, self.name)
+            self.tell_players(self.condition)
 
     def __init__(self, space, station, coords, images, inventory):
         Sprite.__init__(self, space, coords, images)
@@ -271,6 +373,75 @@ class Person(Sprite):
         self.plan = []          # what are you going to interact with as you move, in order?
         self.ailments = {'hypoxia': 0, 'hypobaria': 0, 'hypothermia': 0, 'hyperthermia': 0, \
                          'dehydration': 0, 'starvation': 0, 'sleep deprivation': 0,'illness': 0, 'injury': 0}
+        self.name = "Sue"
+        self.condition = '{} is feeling fine again.'.format(self.name)
+
+class Player(Person):
+    """A sprite that represents the player"""
+
+    def message_display(self, text, percentw, percenth, size, display):
+        """This puts text of at a certain relative point in the window at a certain size"""
+        neuropol = pygame.font.Font('neuropol.ttf',size)
+        textsurface = neuropol.render(text, True, (50, 20, 200))
+        textrect = textsurface.get_rect()
+        textrect.bottomleft = ((displayInfo.current_w*percentw),(displayInfo.current_h*percenth))
+        display.blit(textsurface, textrect)
+
+    # def update_ailments(self):
+    #     """Changes this player's ailments according to the station's parameters"""
+    #     Person.update_ailments(self)
+    #     for ail in self.ailments:
+    #         if self.ailments[ail] > 100:
+    #             self.message.append('{} {}.'.format('You are dying from', ail))
+
+    def update_dialogue(self):
+        """This just puts text on the lower left message area"""
+        self.dialogue = pygame.transform.scale(blankTile.copy(), (displayInfo.current_w, displayInfo.current_h))
+        for m in xrange(min(10,len(self.message))):
+            self.message_display(self.message[-m-1], 0.015, 0.925 - 0.02 * m, 20, self.dialogue)
+        self.interface.blit(self.dialogue, (0.015, 0.895))
+
+    def update_parameters(self):
+        """This just prints the parameters onto the interface"""
+        parametersx = 0.728
+        parametersy = 0.051
+        self.message_display(self.station.print_power(), parametersx, parametersy + 0.0, 12, self.interface)
+        self.message_display(self.station.print_oxy(), parametersx, parametersy + 0.03, 12, self.interface)
+        self.message_display(self.station.print_temp(), parametersx, parametersy + 0.06, 12, self.interface)
+        self.message_display(self.station.print_press(), parametersx, parametersy + 0.09, 12, self.interface)
+        self.message_display(self.station.print_hum(), parametersx, parametersy + 0.12, 12, self.interface)
+        self.message_display(self.station.print_sum(), parametersx, parametersy + 0.15, 12, self.interface)
+
+    def update_interface(self):
+        """This updates the interface image"""
+        self.interface = pygame.transform.scale(interface.copy(), (displayInfo.current_w, displayInfo.current_h))
+        if self.screen == "parameters":
+            self.update_parameters()
+        self.update_dialogue()
+
+    def __init__(self, space, station, coords, images, inventory):
+        Person.__init__(self, space, station, coords, images, inventory)
+        self.message = []
+        self.dialogue = pygame.transform.scale(blankTile.copy(), (displayInfo.current_w, displayInfo.current_h))
+        self.interface = pygame.transform.scale(interface.copy(), (displayInfo.current_w, displayInfo.current_h))
+        self.name = "You"
+        self.condition = "{} are feeling fine again.".format(self.name)
+        self.screen = "parameters"
+
+    def update_condition(self):
+        worst = keywithmaxval(self.ailments)
+        if self.ailments[worst] > 100 and not self.condition=='{1} have just died from {0}.'.format(worst, self.name):
+            self.condition = '{1} have just died from {0}.'.format(worst, self.name)
+            self.tell_players(self.condition)
+        elif 70 < self.ailments[worst] < 95 and not self.condition=='The {} has made you dangerously weak.'.format(worst, self.name):
+            self.condition = 'The {} has made you dangerously weak.'.format(worst, self.name)
+            self.tell_players(self.condition)
+        elif 15 < self.ailments[worst] < 65 and not self.condition=='The {} is starting to get to you.'.format(worst, self.name):
+            self.condition = 'The {} is starting to get to you.'.format(worst, self.name)
+            self.tell_players(self.condition)
+        elif self.ailments[worst] < 10 and not self.condition=='{1} are feeling fine again.'.format(worst, self.name):
+            self.condition = '{1} are feeling fine again.'.format(worst, self.name)
+            self.tell_players(self.condition)
 
 
 def check_return_not_none(func):
@@ -295,20 +466,22 @@ def game_loop(mouse, grid, index, zoom, player, space):
     clickpos = (0,0)
     while True:
 
-        timer = timer%20+1
+        timer = timer%ticksPerCycle+1
+        tickspercyclet = ticksPerCycle/4
         if player.path:
             if timer == 1 and player.mode == 3:
                 player.mode = 0
                 moveto = player.path.pop(0)
                 player.coords = (moveto[0],moveto[1])
+                player.ailments[hypoxia] += 1
                 if player.plan and not player.path:
                     if isinstance(player.plan[0], Equipment):
                         player.facing = filter(lambda direc: what_equipment(go(player.coords, direc)) == player.plan[0], cardinals)[0]
                         player.plan = []
                     player.plan = []
                 grid.update(index, zoom, space)
-            if timer in [6,11,16] and timer == player.mode * 5 + 6:
-                player.mode = (timer-1)/5
+            if timer in [tickspercyclet+1,2*tickspercyclet+1,3*tickspercyclet+1] and timer == (player.mode+1) * tickspercyclet + 1:
+                player.mode = (timer-1)/tickspercyclet
                 player.face()
                 grid.update(index, zoom, space)
         else:
@@ -363,8 +536,9 @@ def game_loop(mouse, grid, index, zoom, player, space):
                             print_thing(equip.type, equip.inv)
                             player.path = path(player.coords, equip.access_points(), 'corridor', space)
                             player.mode = 0
-                            player.plan.append(equip)
-                            if not player.path:
+                            if isinstance(player.path, list):
+                                player.plan.append(equip)
+                            if player.path==[]:
                                 player.facing = filter(lambda direc: what_equipment(go(player.coords, direc)) == player.plan[0], cardinals)[0]
                                 player.plan = []
                 elif event.type == pygame.MOUSEMOTION:
@@ -392,7 +566,7 @@ def game_loop(mouse, grid, index, zoom, player, space):
 
 
         pygame.display.update()  # redraw everything
-        clock.tick(80)  # frames per second
+        clock.tick(40)  # frames per second
 
 
 class Grid(object):
@@ -400,24 +574,16 @@ class Grid(object):
     def __init__(self):
         pass
 
-    def message_display(self, text, percentw, percenth, size):
-        """This puts text of at a certain relative point in the window at a certain size"""
-        neuropol = pygame.font.Font('neuropol.ttf',size)
-        textsurface = neuropol.render(text, True, (50, 20, 200))
-        textrect = textsurface.get_rect()
-        textrect.bottomright = ((displayInfo.current_w*percentw),(displayInfo.current_h*percenth))
-        gameDisplay.blit(textsurface, textrect)
-
     def update(self, index, zoom, space):
         """This wipes the screen, then fills in anything from that part of outerSpace"""
         intdex = (int(round(index[0])), int(round(index[1])))
         gameDisplay.blit(background, (0, 0))
-        window = filter(lambda coords: intdex[0]-2 <= coords[0] < (winWidth+20)*zoom + intdex[0] and \
-                                       intdex[1]-2 <= coords[1] < (winHeight+10)*zoom + intdex[1], space.keys())
-        for point in window:            # then get all the relevant points from space
-            m, n = point
-            if not space[m,n] == '#':
-                gameDisplay.blit(pygame.transform.scale(drawnTiles[space[m,n]],(zoom, zoom)), (round((m - index[0]) * zoom), round((n - index[1]) * zoom)))
+        # window = filter(lambda coords: intdex[0]-2 <= coords[0] < (winWidth+20)*zoom + intdex[0] and \
+        #                                intdex[1]-2 <= coords[1] < (winHeight+10)*zoom + intdex[1], space.keys())
+        # for point in window:            # then get all the relevant points from space
+        #     m, n = point
+        #     if not space[m,n] == '#':
+        #         gameDisplay.blit(pygame.transform.scale(drawnTiles[space[m,n]],(zoom, zoom)), (round((m - index[0]) * zoom), round((n - index[1]) * zoom)))
         nearby = filter(lambda x: x.space == space and intdex[0]-10 < x.index[0] + x.width and x.index[0] < intdex[0]+(winWidth+10) \
                         and intdex[1]-10 < x.index[1] + x.height and x.index[1] < intdex[1]+(winHeight+10), stations)
         for station in nearby:
@@ -433,14 +599,7 @@ class Grid(object):
         gameDisplay.blit(pygame.transform.rotate(pygame.transform.scale(playerOne.wardrobe[playerOne.mode if playerOne.mode < 2 \
             else 0 if playerOne.mode==2 else playerOne.mode-1], (zoom, zoom)), playeroner), \
                          (playeronex * zoom, playeroney * zoom))
-        gameDisplay.blit(pygame.transform.scale(interface, (displayInfo.current_w, displayInfo.current_h)), (-8, -20))
-        self.message_display("Station online", 0.12, 0.89, 20)
-        self.message_display(playerOne.station.print_power(), .985, 0.06, 10)
-        self.message_display(playerOne.station.print_oxy(), 0.985, 0.08, 10)
-        self.message_display(playerOne.station.print_temp(), .985, 0.10, 10)
-        self.message_display(playerOne.station.print_press(), 0.985, 0.12, 10)
-        self.message_display(playerOne.station.print_hum(), .985, 0.14, 10)
-        self.message_display(playerOne.station.print_sum(), 0.985, 0.16, 10)
+        gameDisplay.blit(playerOne.interface, (-8, -20))
 
 
 def print_thing(name, dict):
@@ -505,14 +664,14 @@ def path(start, ends, pathtype, space=outerSpace):
     elif isinstance(ends, list):
         end = ends
     cells = []
-    for e in end:
+    for e in end:           # start at the end cell(s)
         cells.append((e[0], e[1], 0))
     tries = 0
     solution = []
     for cell in cells:
         tries += 1
         if tries > 500:
-            return False
+            return False        # if we sort through 500 cells and don't get from end to start, quit
         adjacent = filter(lambda adj: what_equipment((adj[0],adj[1]))==pathtype, \
                           [(cell[0], cell[1]+1, cell[2]+1), (cell[0]+1, cell[1], cell[2]+1), \
                            (cell[0], cell[1]-1, cell[2]+1), (cell[0]-1, cell[1], cell[2]+1)])   # filter adj cells for the pathtype
@@ -534,7 +693,7 @@ def path(start, ends, pathtype, space=outerSpace):
                     break
             if what_equipment((adj[0],adj[1])) == pathtype and not repeat:
                 cells.append(adj)
-    return False
+    return False            # if we sort through all our cells and don't get from end to start, quit
 
 
 def replace(space, index, extremity, target, replacement):
@@ -699,7 +858,7 @@ def flood(space, coords, target, replacement):
 
 
 def entry(space, index, cwidth, cheight, airlock):
-    """Gives the adjacent corridor coordinates of an airlock, given its component's size and index"""
+    """Gives the coordinates of the adjacent component cell given an airlock and its component's size and index"""
     x, y = index
     m, n = airlock.coords
     if m == x-1:
@@ -981,35 +1140,40 @@ class Station(object):
         self.power_change, self.power_storage, self.oxygen_change, self.air_capacity, self.pressure_change, self.humidity_change, self.temperature_change = 0, 0, 0, 0, 0, 0, 0
         for component in self.components:
             self.air_capacity += component.area
-            self.temperature_change -= component.area * self.temperature / (296.0 * 500.0)
+            self.temperature_change -= component.area * (2**(0.02*self.temperature)) / (400000.0)
+        for component in self.components:
             for equip in component.equipment:
                 if equip.powered == 1:
-                    if -10 * equip.power > self.power:
-                        equip.powered = 0
-                        print "Powering down", equip.type
-                    self.power_change += equip.power / 500.0
-                    self.temperature_change += abs(equip.power/(3.0 * self.area))
+                    equip.produce()
+                    self.power_change += equip.power / 1000.0
+                    self.temperature_change += abs(equip.power/(40.0 * self.area)) - equip.power/(80.0 * self.area)   # converters = less heat than furnaces
                     if equip.type == 'battery':
-                        self.power_storage += 10.0 * equip.area
+                        self.power_storage += 5.0 * equip.area
+                    if equip.type == 'converter':
+                        self.power_storage += 0.5 * equip.area
                     if equip.type == 'recycler':
-                        self.oxygen_change += 0.1 * equip.area
+                        self.oxygen_change += 0.01 * equip.area
                     if equip.type == 'dehumidifier':
-                        self.humidity_change -= 5.0 * equip.area / self.area
-                        self.temperature_change += 20 * equip.area / self.area
+                        self.humidity_change -= 2.0 * equip.area / self.area
+                        self.temperature_change += 2.0 * equip.area / self.area
                     if equip.type == 'pressurizer':
-                        self.pressure_change += equip.area / (self.air_capacity*5.0)
+                        self.pressure_change += 0.1 * equip.area / self.air_capacity
                     if equip.type == 'thermoregulator':
-                        self.temperature_change += equip.area * 100.0 *(math.atan(.05*(296-self.temperature))) / self.area
+                        self.temperature_change += equip.area * 10.0 *(math.atan(.05*(296-self.temperature))) / self.area
                     if equip.type == 'farm':
-                        self.humidity_change += 1.0 * equip.area / self.area
-                        self.temperature_change -= 5.0 * equip.area / self.area
+                        self.humidity_change += 0.2 * equip.area / self.area
+                        self.temperature_change -= 0.2 * equip.area / self.area     # heat from power is + 2*area/(10*total)
                         self.oxygen_change += 0.05 * equip.area
+                    if equip.type == 'electrolyzer':                                # heat from power is + 20*area/(10*total), so any minus would be tiny
+                        self.humidity_change += 0.05 * equip.area / self.area
+                        self.oxygen_change += 0.1 * equip.area
+                        self.pressure_change += 0.021 * equip.area / self.air_capacity
             for airlock in component.airlocks:
                 if airlock not in self.airlocks:
                     self.airlocks.append(airlock)
-        self.temperature_change += 100.0 * len(self.population)/self.area
-        self.oxygen_change -= 0.5 *  len(self.population)
-        self.humidity_change += 2.0 * len(self.population) / self.area
+        self.temperature_change += 10.0 * len(self.population)/self.area
+        self.oxygen_change -= 0.3 *  len(self.population)
+        self.humidity_change += 1.0 * len(self.population) / self.area
 
     def update_image(self):
         """Update the station's blit image"""
@@ -1018,6 +1182,10 @@ class Station(object):
                 eindex = (round((equip.eindex[0] - self.index[0]) * winZoom), round((equip.eindex[1] - self.index[1]) * winZoom))
                 self.image.blit(pygame.transform.scale(equipmentFlavors[equip.flavor][equip.type][0].pattern, \
                     (winWidth * winZoom, winHeight * winZoom)), eindex, (0, 0, equip.width * winZoom, equip.height * winZoom))
+            corridors = filter(lambda coords: what_equipment(coords, [self], self.space)=='corridor', self.space.keys())
+            for c in corridors:
+                coords = (round((c[0] - self.index[0]) * winZoom), round((c[1] - self.index[1]) * winZoom))
+                self.image.blit(pygame.transform.scale(corridorTile, (winZoom, winZoom)), coords)
         for airlock in self.airlocks:
             coords = (round((airlock.coords[0] - self.index[0]) * winZoom), round((airlock.coords[1] - self.index[1]) * winZoom))
             self.image.blit(pygame.transform.scale(airlockTile, (winZoom, winZoom)), coords)
@@ -1063,6 +1231,15 @@ class Station(object):
                     return entries[int(random()*len(entries))]
 
     def cycle(self):
+        for component in self.components:
+            for equip in component.equipment:
+                if equip.power/-50.0 > self.power and equip.type == 'recycler' or equip.power/-20.0 > self.power:
+                    if equip.powered:
+                        equip.powered = 0
+                        for person in self.population:
+                            if isinstance(person, Player):
+                                person.message.append("The {} {} as it powers down.".format\
+                                                     (equip.type, equipmentNoises[randint(0,len(equipmentNoises))]))
         self.update_equipment()
         self.power = max(0.0, min(self.power_storage,(self.power + self.power_change)))
         self.oxygen = max(0.0, min(self.air_capacity * self.pressure,(self.oxygen + self.oxygen_change)))
@@ -1071,25 +1248,28 @@ class Station(object):
         self.humidity = max(0.0, min(1.0, (self.humidity + self.humidity_change)))
         for person in self.population:
             person.update_ailments()
+        for person in self.population:
+            if isinstance(person, Player):
+                person.update_interface()
 
     def print_power(self):
-        return '{} {} {} {} {} {}.'.format("Station power is", int(self.power), "out of", self.power_storage, \
+        return '{} {} {} {} {} {}'.format("Station power is", int(self.power), "out of", int(self.power_storage), \
                                           "changing by", round(self.power_change, 1))
     def print_oxy(self):
-        return '{} {} {} {} {} {}.'.format("Station oxygen is", int(self.oxygen), "out of", self.air_capacity, \
+        return '{} {} {} {} {} {}'.format("Station oxygen is", int(self.oxygen), "out of", self.air_capacity, \
                                         "changing by", round(self.oxygen_change, 1))
     def print_press(self):
-        return '{} {} {} {}.'.format("Station pressure is", round(self.pressure, 2), "atmospheres, changing by", round(self.pressure_change,3))
+        return '{} {} {} {}'.format("Station pressure is", round(self.pressure, 2), "atm, changing by", round(self.pressure_change,3))
     def print_hum(self):
-        return '{} {}{} {}%.'.format("Station humidity is", int(100*self.humidity), "% changing by", round(100*self.humidity_change, 1))
+        return '{} {}{} {}%'.format("Station humidity is", int(100*self.humidity), "% changing by", round(100*self.humidity_change, 1))
     def print_temp(self):
         tempchange = self.temperature_change
         if -0.05 < self.temperature_change < 0.05:
             tempchange = 0
-        return '{} {}{} {}.'.format("Station temperature is", int(self.temperature), "K changing by", round(tempchange, 1))
+        return '{} {}{} {}'.format("Station temperature is", int(self.temperature), "K changing by", round(tempchange, 1))
     def print_sum(self):
-        return '{} {} {} {} {} {} {}.'.format("Station, which stretches from", self.index, "to", \
-                                           (self.extent()[2],self.extent()[3]), "contains", len(self.population), "souls")
+        return '{} {} {} {}, {} {} {}'.format("Station covers", self.index, "to", \
+                                           (self.extent()[2],self.extent()[3]), "and contains", len(self.population), "souls")
 
     def __init__(self, space, stradix, flavor):
         self.space = space
@@ -1099,11 +1279,12 @@ class Station(object):
         self.component_count = 0
         self.airlocks = []
         self.population = []
-        self.power_change, self.power_storage, self.power, self.oxygen_change, self.oxygen, self.air_capacity, self.pressure_change, \
-        self.humidity_change, self.humidity, self.temperature_change = 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        self.power_change, self.power_storage, self.oxygen_change, self.oxygen, self.air_capacity, self.pressure_change, \
+        self.humidity_change, self.humidity, self.temperature_change = 0, 0, 0, 0, 0, 0, 0, 0, 0
         self.temperature = 296.0
         self.pressure = 0.4
         self.oxygen = 100
+        self.power = 200
         self.area = 1000
         self.spawn_component(self.stradix, self.flavor, [], (1-random()**2) * 0.75 + 0.2, (1-random()**2) * 0.75 + 0.2)     # ns and we probs are random between .2 and .95
         self.update_area()
@@ -1248,7 +1429,7 @@ class Component(object):
                     attempts += 1
                     equip = equipmentFlavors[flav].keys()[randint(0,len(equipmentFlavors[flav].keys())-1)]      # pick 'generator' or something
                     burden = equipmentFlavors[flav][equip][1] * block[1] * block[2] * 5*minCompHeight*minCompWidth/(self.width*self.height)                              # how much flavor would that size generator have?
-                    if self.flavor[flav]/20 - attempts*5 < burden < self.flavor[flav]/5 + attempts*20:                                      # is it a reasonable amount of flavor?
+                    if self.flavor[flav]/20 - attempts*5 < burden < self.flavor[flav]/5 + attempts*10:                                      # is it a reasonable amount of flavor?
                         self.equipment.append(Equipment(self.space, self.station, self, block[0], block[1], block[2], equip, flav))
                         print "Placing", equip, "at", block[0]
                         for f in equipmentFlavors[flav][equip][0].flavors.keys():                           # go through all flavors for that equipment, [equip][0] is the Tile object
@@ -1316,7 +1497,7 @@ class NSComponent(Component):
         for ea in eairlocks:
             m, n = ea.coords
             m -= 1
-            cl = randint(cwidth/3, cwidth*2/3)
+            cl = max(1, randint(cwidth/3, cwidth*2/3))
             while m >= x+cwidth-cl and not is_character(self.space, (m,n), 'C'):
                 if m == x+cwidth-cl and is_character(self.space, (m,n+1), '#') \
                    and is_character(self.space, (m,n-1), '#') and is_character(self.space, (m-1,n), '#'):
@@ -1329,7 +1510,7 @@ class NSComponent(Component):
         for wa in wairlocks:
             m, n = wa.coords
             m += 1
-            cl = randint(cwidth/3, cwidth*2/3)
+            cl = max(1, randint(cwidth/3, cwidth*2/3))
             while m <= x+cl-1 and not is_character(self.space, (m,n), 'C'):
                 if m == x+cl-1 and is_character(self.space, (m,n+1), '#') \
                    and is_character(space, (m,n-1), '#') and is_character(self.space, (m+1,n), '#'):
@@ -1349,7 +1530,7 @@ class NSComponent(Component):
                     if is_character(self.space, (x+cwidth-1,y+spot), '#') and not is_character(self.space, (x,y+spot+1), 'C') \
                        and not is_character(self.space, (x,y+spot-1), 'C') and not is_character(self.space, (x+cwidth-1,y+spot-1), 'C') \
                        and not is_character(self.space, (x+cwidth-1,y+spot+1), 'C') and not is_character(self.space, (x+cwidth+1,y+spot), '#'):
-                        cl = randint(cwidth/3, cwidth*2/3)
+                        cl = max(1, randint(cwidth/3, cwidth*2/3))
                         m = x+cwidth-1
                         n = y+spot
                         newdoors.append((m+1,n))
@@ -1365,7 +1546,7 @@ class NSComponent(Component):
                     if is_character(self.space, (x,y+spot), '#') and not is_character(self.space, (x,y+spot+1), 'C') \
                        and not is_character(self.space, (x,y+spot-1), 'C') and not is_character(self.space, (x+cwidth-1,y+spot-1), 'C') \
                        and not is_character(self.space, (x+cwidth-1,y+spot+1), 'C') and not is_character(self.space, (x-2,y+spot), '#'):
-                        cl = randint(cwidth/3, cwidth*2/3)
+                        cl = max(1, randint(cwidth/3, cwidth*2/3))
                         m = x
                         n = y+spot
                         newdoors.append((m-1,n))
@@ -1411,7 +1592,7 @@ class NSComponent(Component):
         for na in nairlocks:               # place corridors spawned by north airlocks
             m, n = na.coords
             if is_character(space, (m,n+1), '#'):
-                cl = min(randint(cheight/5, cheight*9/5), cheight)
+                cl = max(1, min(randint(cheight/5, cheight*9/5), cheight))
                 for c in range(cl):
                     space[(m,n+c+1)] = 'C'
                 maincorridors -= 1
@@ -1423,7 +1604,7 @@ class NSComponent(Component):
         for sa in sairlocks:               # place corridors spawned by south airlocks
             m, n = sa.coords
             if is_character(space, (m,n-1), '#'):
-                cl = min(randint(cheight/5, cheight*9/5), cheight)
+                cl = max(1, min(randint(cheight/5, cheight*9/5), cheight))
                 for c in range(cl):
                     space[(m,n-c-1)] = 'C'
                 maincorridors -= 1
@@ -1439,7 +1620,7 @@ class NSComponent(Component):
                     if is_character(space, (x+spot,y), '#') and not is_character(space, (x+spot+1,y), 'C') \
                        and not is_character(space, (x+spot-1,y), 'C') and not is_character(space, (x+spot-1,y+cheight-1), 'C') \
                        and not is_character(space, (x+spot+1,y+cheight-1), 'C'): # and not is_character(self.space, (x+spot,y-2), '#'):
-                        cl = min(randint(cheight/5, cheight*9/5), cheight)
+                        cl = max(1, min(randint(cheight/5, cheight*9/5), cheight))
                         for c in range(cl):
                             space[(x+spot,y+c)] = 'C'
                         maincorridors -= 1
@@ -1453,7 +1634,7 @@ class NSComponent(Component):
                     if is_character(space, (x+spot,y+cheight-1), '#') and not is_character(space, (x+spot+1,y), 'C') \
                        and not is_character(space, (x+spot-1,y), 'C') and not is_character(space, (x+spot-1,y+cheight-1), 'C') \
                        and not is_character(space, (x+spot+1,y+cheight-1), 'C'): # and not is_character(self.space, (x+spot,y+cheight+1), '#'):
-                        cl = min(randint(cheight/5, cheight*9/5), cheight)
+                        cl = max(1, min(randint(cheight/5, cheight*9/5), cheight))
                         for c in range(cl):
                             space[(x+spot,y+cheight-c-1)] = 'C'
                         maincorridors -= 1
@@ -1505,7 +1686,7 @@ class WEComponent(Component):
         for sa in sairlocks:
             m, n = sa.coords
             n -= 1
-            cl = randint(cheight/3, cheight*2/3)
+            cl = max(1, randint(cheight/3, cheight*2/3))
             while n >= y+cheight-cl and not is_character(self.space, (m,n), 'C'):
                 if n == y+cheight-cl and is_character(self.space, (m+1,n), '#') \
                    and is_character(self.space, (m-1,n), '#') and is_character(self.space, (m,n-1), '#'):
@@ -1518,7 +1699,7 @@ class WEComponent(Component):
         for na in nairlocks:
             m, n = na.coords
             n += 1
-            cl = randint(cheight/3, cheight*2/3)
+            cl = max(1, randint(cheight/3, cheight*2/3))
             while n <= y+cl-1 and not is_character(self.space, (m,n), 'C'):
                 if n == y+cl-1 and is_character(self.space, (m+1,n), '#') \
                    and is_character(space, (m-1,n), '#') and is_character(self.space, (m,n+1), '#'):
@@ -1538,7 +1719,7 @@ class WEComponent(Component):
                     if is_character(self.space, (x+spot,y+cheight-1), '#') and not is_character(self.space, (x+spot+1,y), 'C') \
                        and not is_character(self.space, (x+spot-1,y), 'C') and not is_character(self.space, (x+spot-1,y+cheight-1), 'C') \
                        and not is_character(self.space, (x+spot+1,y+cheight-1), 'C') and not is_character(self.space, (x+spot,y+cheight+1), '#'):
-                        cl = randint(cheight/3, cheight*2/3)
+                        cl = max(1, randint(cheight/3, cheight*2/3))
                         m = x+spot
                         n = y+cheight-1
                         newdoors.append((m,n+1))
@@ -1554,7 +1735,7 @@ class WEComponent(Component):
                     if is_character(self.space, (x+spot,y), '#') and not is_character(self.space, (x+spot+1,y), 'C') \
                        and not is_character(self.space, (x+spot-1,y), 'C') and not is_character(self.space, (x+spot-1,y+cheight-1), 'C') \
                        and not is_character(self.space, (x+spot+1,y+cheight-1), 'C') and not is_character(self.space, (x+spot,y-2), '#'):
-                        cl = randint(cheight/3, cheight*2/3)
+                        cl = max(1, randint(cheight/3, cheight*2/3))
                         n = y
                         m = x+spot
                         newdoors.append((m,n-1))
@@ -1600,7 +1781,7 @@ class WEComponent(Component):
         for wa in wairlocks:               # place corridors spawned by west airlocks
             m, n = wa.coords
             if is_character(space, (m+1,n), '#'):
-                cl = min(randint(cwidth/5, cwidth*9/5), cwidth)
+                cl = max(1, min(randint(cwidth/5, cwidth*9/5), cwidth))
                 for c in range(cl):
                     space[(m+c+1,n)] = 'C'
                 maincorridors -= 1
@@ -1612,7 +1793,7 @@ class WEComponent(Component):
         for ea in eairlocks:               # place corridors spawned by east airlocks
             m, n = ea.coords
             if is_character(space, (m-1,n), '#'):
-                cl = min(randint(cwidth/5, cwidth*9/5), cwidth)
+                cl = max(1, min(randint(cwidth/5, cwidth*9/5), cwidth))
                 for c in range(cl):
                     space[(m-c-1,n)] = 'C'
                 maincorridors -= 1
@@ -1628,7 +1809,7 @@ class WEComponent(Component):
                     if is_character(space, (x,y+spot), '#') and not is_character(space, (x,y+spot+1), 'C') \
                        and not is_character(space, (x,y+spot-1), 'C') and not is_character(space, (x+cwidth-1,y+spot-1), 'C') \
                        and not is_character(space, (x+cwidth-1,y+spot+1), 'C'): # and not is_character(self.space, (x-2,y+spot), '#'):
-                        cl = min(randint(cwidth/5, cwidth*9/5), cwidth)
+                        cl = max(1, min(randint(cwidth/5, cwidth*9/5), cwidth))
                         for c in range(cl):
                             space[(x+c,y+spot)] = 'C'
                         maincorridors -= 1
@@ -1642,7 +1823,7 @@ class WEComponent(Component):
                     if is_character(space, (x+cwidth-1,y+spot), '#') and not is_character(space, (x,y+spot+1), 'C') \
                        and not is_character(space, (x,y+spot-1), 'C') and not is_character(space, (x+cwidth-1,y+spot-1), 'C') \
                        and not is_character(space, (x+cwidth-1,y+spot+1), 'C'): # and not is_character(self.space, (x+cwidth+1,y+spot), '#'):
-                        cl = min(randint(cwidth/5, cwidth*9/5), cwidth)
+                        cl = max(1, min(randint(cwidth/5, cwidth*9/5), cwidth))
                         for c in range(cl):
                             space[(x+cwidth-c-1,y+spot)] = 'C'
                         maincorridors -= 1
@@ -1689,6 +1870,16 @@ class Equipment(object):
             adjacent.append((x+pt, y+self.height))
         return filter(lambda a: is_character(self.space, a, character), adjacent)
 
+    def produce(self):
+        """Produces whatever it's supposed to"""
+        production = equipmentProduction[self.type]
+        if sum(self.inv.itervalues()) < production[0] and random() > self.area/production[1] and \
+            not filter(lambda i: self.inv[i] < production[2][i], production[2].keys()): # if not full and ready and has enough material
+            for i in production[2]:
+                self.inv[i] -= production[2][i]         # use mats
+            for i in production[3]:
+                self.inv[i] += production[3][i]         # to make products
+
     def __init__(self, space, station, component, eindex, width, height, type, flavor):
         self.space = space
         self.station = station
@@ -1700,10 +1891,12 @@ class Equipment(object):
         self.access = self.access_points()
         self.type = type
         self.flavor = flavor
-        self.inv = {'metal':0, 'wire':0, 'plastic':0, 'silica':0, 'electrolytes':0, 'hydrogen':0, 'diodes':0, \
-                    'photocells':0, 'transistors':0, 'leds':0, 'screens':0, 'capacitors':0, 'resistors':0, \
-                    'oscillators':0, 'batteries':0, 'antennas':0, 'transformers':0, 'inductors':0, 'scrap':0, \
-                    'trash':0, 'food':0, 'water':0, 'medicine':0}
+        self.inv = {
+            'metal':0, 'wire':0, 'plastic':0, 'silica':0, 'electrolytes':0, 'hydrogen':0, 'diodes':0,
+            'photocells':0, 'transistors':0, 'leds':0, 'screens':0, 'capacitors':0, 'resistors':0,
+            'oscillators':0, 'batteries':0, 'antennas':0, 'transformers':0, 'inductors':0, 'relays':0,
+            'amplifiers':0, 'scrap':0, 'trash':0, 'food':0, 'water':0, 'medicine':0
+        }
         self.starting_loot()
         self.power = equipmentPower[type]*width*height
         self.powered = 1
@@ -1723,11 +1916,14 @@ gameDisplay.fill(backgroundColor)     # and a blank image window
 
 stations.append(Station(outerSpace, (0, 0, cardinals[randint(0, 3)]), season(defaultFlavor)))  # (what region?, (origin x,origin y,from what direction?), what flavors?)
 
-playerOne = Person(outerSpace, stations[0], stations[0].enter(), [playerImage, playerWalk1, playerWalk2, playerAction], \
+playerOne = Player(outerSpace, stations[0], stations[0].enter(), [playerImage, playerWalk1, playerWalk2, playerAction], \
                    {'metal':0, 'wire':0, 'plastic':0, 'silica':0, 'electrolytes':0, 'hydrogen':0, 'diodes':0, \
                     'photocells':0, 'transistors':0, 'leds':0, 'screens':0, 'capacitors':0, 'resistors':0, \
-                    'oscillators':0, 'batteries':0, 'antennas':0, 'transformers':0, 'inductors':0, 'scrap':0, \
-                    'trash':0, 'food':0, 'water':0, 'medicine':0})
+                    'oscillators':0, 'batteries':0, 'antennas':0, 'transformers':0, 'relays':0, 'amplifiers':0, \
+                    'inductors':0, 'scrap':0, 'trash':0, 'food':0, 'water':0, 'medicine':0})
+
+playerOne.message.append("Station Online")
+playerOne.message.append("Welcome to Space")
 
 stations[0].update_equipment()
 
@@ -1737,10 +1933,10 @@ game_loop(mouse, grid, wIndex, winZoom, playerOne, outerSpace)  # run the game u
 pygame.quit()  # if by some miracle you get here without that happening, quit immediately omg
 quit()
 
-# Do:  Fix seed 274 can't remove deadend.  Components forming with airlocks at diagonals.  Make NPCs/equipment rules!
+# Do:  Components forming with airlocks at diagonals.  Make equipment inventory interface.  Airlock movement.  Make NPCs!
 
 # Make solar arrays?  Make transportation (roboferry? jetpack zipline?)
-# Other equipment?  Armory?  Science?  Propulsion?  Other resources? (23 currently)  Lubricants? Insulation?
+# Other equipment?  Armory?  Science?  Propulsion? (27 currently) Other resources? (25 currently)  Lubricants? Insulation?
 # Items?  Pack?  Keycard?  Jetpack/autobot? Angle grinder?  Welder?
 # Rally NPCs: Proximity to liked characters.  Enjoyable work.  Childcare?  Shared victories?
 # Crises: Space storms?  Meteorites, static discharge, accidents, equipment failures.  Boredom? Anxiety? Drama.  Theft?  Of "medicine"?
