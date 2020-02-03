@@ -1,0 +1,1 @@
+pyinstaller --noconfirm --onedir --add-data="/images;images" --add-data="/readme.txt;readme.txt" component.spec
